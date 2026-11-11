@@ -49,13 +49,11 @@
 - 查证时问题分成哪几类、提示词里怎么称呼这些东西（「同名活动每年都有，看清是哪一期」）；
 - 人设。
 
-最后这一类全是配置，没有一行代码，都在 [`config.yaml`](src/jianshanagent_site_huiji_yys/config.yaml) 的 `extend` 段里。
-想给自己的 wiki 写插件，这是最值得先看的部分。
+最后这一类全是配置，没有一行代码，都在 [`config.yaml`](src/jianshanagent_site_huiji_yys/config.yaml) 的 `extend` 段里。想给自己的 wiki 写插件，这是最值得先看的部分。
 
 ## 怎么用
 
-它建在灰机平台上，离不开 [`site-huiji`](https://github.com/JianShanAgent/site-huiji)。把两个都装进和核心同一个环境：
-在实例仓库的 `pyproject.toml` 和 `components.lock` 里各加上它们。
+它建在灰机平台上，离不开 [`site-huiji`](https://github.com/JianShanAgent/site-huiji)。把两个都装进和核心同一个环境：在实例仓库的 `pyproject.toml` 和 `components.lock` 里各加上它们。
 
 实例的 `config/core.wiki.yaml` 照 [`tests/config/core.wiki.yaml`](tests/config/core.wiki.yaml) 写——wiki 的地址、放行请求头，和一行：
 
@@ -63,8 +61,7 @@
 site: yys          # 只写这一级，灰机平台会被自动带出来
 ```
 
-灰机的站在 Cloudflare 后面，请求要带放行密钥，填在实例的 `config/secrets.yaml` 的 `wiki.authkey`。
-一个完整的例子是 [`instance-yys`](https://github.com/JianShanAgent/instance-yys)。
+灰机的站在 Cloudflare 后面，请求要带放行密钥，填在实例的 `config/secrets.yaml` 的 `wiki.authkey`。一个完整的例子是 [`instance-yys`](https://github.com/JianShanAgent/instance-yys)。
 
 ## 配置
 
