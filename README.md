@@ -2,7 +2,7 @@
 
 <h1 align="center">site-huiji-yys</h1>
 
-<p align="center">让<a href="https://github.com/JianShanAgent/agent-core">见山</a>读懂<a href="https://yys.huijiwiki.com">阴阳师 wiki</a>。</p>
+<p align="center"><a href="https://github.com/JianShanAgent/agent-core">JianShanAgent（见山）</a>的<a href="https://yys.huijiwiki.com">灰机阴阳师 Wiki</a> 站点插件。</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/插件-站点%20·%20站-2f6b5a?style=flat-square&labelColor=1f3b34" alt="站点插件 · 站">
@@ -11,91 +11,98 @@
   <img src="https://img.shields.io/github/license/JianShanAgent/site-huiji-yys?label=License&color=2f6b5a&style=flat-square&labelColor=1f3b34" alt="License">
 </p>
 
-<sub>JianShanAgent site plugin for the Onmyoji wiki (yys.huijiwiki.com), built on top of the Huiji Wiki platform plugin. Documentation is in Chinese.</sub>
+<sub>JianShanAgent site plugin for the Onmyoji Wiki (`yys.huijiwiki.com`), built on top of `site-huiji`. Implements structured shikigami/mitama lookups, nickname resolution, `/筛选` filtering, announcements/story ingestion, entity disambiguation, and reverse image search curation.</sub>
 
-## 它管什么
+## 插件简介
 
-不装这个插件，见山也能服务阴阳师 wiki——但它只认得「页面」。问「高铁」，它会去搜标题里带这两个字的页面，而不知道这是大天狗·高天铁羽的外号。
+如果不装这个插件，见山虽然也能直接连上阴阳师 Wiki，但它只能把站点当成普通的词条集合——玩家问 `/查 高铁`，它只会去全文搜索带“高铁”两个字的页面，不知道这是「大天狗·高天铁羽」的玩家黑话；也没法按稀有度和功能标签筛选式神。
 
-这个插件把阴阳师 wiki 自己的东西教给它：
+本插件构建在灰机平台插件 [`site-huiji`](https://github.com/JianShanAgent/site-huiji) 之上，把阴阳师 Wiki 的结构化数据、黑话体系与多源资料完整接入见山：
 
-**查得更准**
+### 1. 结构化直查与筛选指令
 
 ```text
-你    /查 高铁
+用户  /查 高铁
 见山  【大天狗·高天铁羽】 · UR · 男 · CV 前野智昭（日）/ 郑武文杰（中）
       别名：高铁、UR狗、UR大天狗
       定位：伤害
-      ……
+      ……（完整技能描述、御魂搭配与词条直达链接）
 
-你    /筛选 SP 拉条
+用户  /筛选 SP 拉条
 见山  SP + 拉条：共 7 个式神
       灼华桃花妖、纺愿缘结神、禅心云外镜、梦寻山兔、空相面灵气、聆海金鱼姬、稻荷神御馔津
 ```
 
-- 式神、御魂按正式名和昵称都能查，回复的是稀有度、技能、定位这些结构化的内容，不是页面摘要；
-- 多了 `/筛选` 命令和给对话模型用的筛选工具：按稀有度、标签列式神。
+- **式神与御魂精准卡片**：支持正式名称与玩家常用外号/简称直查，直接读取灰机 `Data:` JSON 数据返回稀有度、声优、技能数值、定位等结构化内容。
+- **`/筛选` 指令与大模型工具**：支持按稀有度（UR / SP / SSR / SR / R）与定位标签组合筛选式神，同时注册为工具供对话模型在自然语言问答中调用。
 
-**知识库更全**
+### 2. 多源知识库扩展与以图搜图
 
-- 条目页以外的内容也收：大神公告、剧情、数据集里的资料（皮肤获取方式、状态说明、百鬼棋局、超鬼王……）；
-- 切片上标好提到了哪些式神、御魂，同名的（御魂「地震鲶」和妖怪同名）不混；
-- 图库：立绘、头像、御魂图，供以图搜图用；
-- 自动更新时知道哪份数据对应哪个式神的页面，只重取那一页。
+- **扩展词条之外的数据源**：除普通 Wiki 条目外，自动抓取并切片网易大神更新公告、主线与活动剧情、以及 `Data:` 数据集中的结构化资料（皮肤获取途径、战斗状态说明、百鬼棋局、超鬼王等）。
+- **同名实体标注与消歧**：为每个知识切片打上涉及的式神、御魂实体标签，区分同名概念（例如御魂「地震鲶」与首领妖怪「地震鲶」）。
+- **立绘与图标图库构建**：自动收集式神觉醒前后立绘、皮肤立绘、头像与御魂图标，供 QQ 发图提问时做以图搜图识别。
+- **精准增量更新映射**：在 `kbsync` 每小时自动同步时，精确识别某份 `Data:` JSON 改动对应哪一位式神的词条页，只重抓受影响的那一页。
 
-**说这个站的话**
+### 3. 单站清洗规则、查证提示词与人设（纯配置实现）
 
-- 这个站的页面模板怎么清洗；
-- 查证时问题分成哪几类、提示词里怎么称呼这些东西（「同名活动每年都有，看清是哪一期」）；
-- 人设。
+在 [`config.yaml`](src/jianshanagent_site_huiji_yys/config.yaml) 的 `extend` 段中，不写代码直接补充了阴阳师 Wiki 专属的 HTML 模板清洗规则、查证问题分类、同名周期性活动（如“为崽而战”“超鬼王”每年多期）的核对提示以及机器人说话人设——**如果你想为自己的游戏 Wiki 写插件，这一段是最直观的参考模板。**
 
-最后这一类全是配置，没有一行代码，都在 [`config.yaml`](src/jianshanagent_site_huiji_yys/config.yaml) 的 `extend` 段里。想给自己的 wiki 写插件，这是最值得先看的部分。
+## 如何安装使用
 
-## 怎么用
+在你的实例仓库（参考线上实例 [`instance-yys`](https://github.com/JianShanAgent/instance-yys) 或模板 [`template-instance`](https://github.com/JianShanAgent/template-instance)）的 `pyproject.toml` 中同时加入灰机平台插件与本插件：
 
-它建在灰机平台上，离不开 [`site-huiji`](https://github.com/JianShanAgent/site-huiji)。把两个都装进和核心同一个环境：在实例仓库的 `pyproject.toml` 和 `components.lock` 里各加上它们。
-
-实例的 `config/core.wiki.yaml` 照 [`tests/config/core.wiki.yaml`](tests/config/core.wiki.yaml) 写——wiki 的地址、放行请求头，和一行：
-
-```yaml
-site: yys          # 只写这一级，灰机平台会被自动带出来
+```toml
+dependencies = [
+  "jianshanagent @ git+https://github.com/JianShanAgent/agent-core.git",
+  "jianshanagent-site-huiji @ git+https://github.com/JianShanAgent/site-huiji.git",
+  "jianshanagent-site-huiji-yys @ git+https://github.com/JianShanAgent/site-huiji-yys.git",
+]
 ```
 
-灰机的站在 Cloudflare 后面，请求要带放行密钥，填在实例的 `config/secrets.yaml` 的 `wiki.authkey`。一个完整的例子是 [`instance-yys`](https://github.com/JianShanAgent/instance-yys)。
+在实例仓库的 `config/core.wiki.yaml` 中写入（参考 [`tests/config/core.wiki.yaml`](tests/config/core.wiki.yaml)）：
 
-## 配置
+```yaml
+name: "阴阳师"
+about: "网易手游"
+api_url: "https://yys.huijiwiki.com/api.php"
+site_base: "https://yys.huijiwiki.com"
+auth_header: "X-authkey"
+site: yys          # 只需填 yys，上级平台插件 huiji 会自动先行加载
+```
 
-配置名是 `site.yys`，默认值在 [`config.yaml`](src/jianshanagent_site_huiji_yys/config.yaml)，分三段：
+将灰机 Cloudflare 放行密钥填入实例 `config/secrets.yaml` 的 `wiki.authkey`，然后通过 `uv sync && uv run jianshanagent` 或 `docker compose up -d --build` 启动即可。
 
-| 段 | 管什么 |
-|---|---|
-| `wiki` | 查询：`/筛选` 命令叫什么、御魂的链接指向哪个页面 |
-| `knowledge` | 知识库：公告和剧情的来源、数据集、实体字典、图库怎么选图 |
-| `extend` | 对通用配置的补充：清洗规则、提示词里的说法、人设 |
+## 配置说明
 
-某个部署要改，在实例的 `config/site.yys.yaml` 里只写要改的项。`extend` 段读配置时就并进了通用配置，不能在管理后台里改。
+插件默认配置位于 [`src/jianshanagent_site_huiji_yys/config.yaml`](src/jianshanagent_site_huiji_yys/config.yaml)，逻辑名为 `site.yys`，分为三部分：
+- `wiki`：控制 `/筛选` 指令名及御魂链接跳转目标页；
+- `knowledge`：控制公告、剧情、数据集、实体词典与图库的采集规则；
+- `extend`：注入核心通用配置的清洗规则、查证分类提示与默认人设。
 
-## 开发
+如需在部署实例中调整参数，新建 `config/site.yys.yaml` 仅填写需要覆盖的字段即可。
+
+## 目录结构与本地开发
+
+```text
+site-huiji-yys/
+├── src/jianshanagent_site_huiji_yys/
+│   ├── plugin.yaml      # 插件清单（id: yys, parent: huiji）
+│   ├── config.yaml      # 默认配置与 extend 扩展项
+│   ├── wiki.py          # 查询侧实现：式神、御魂卡片与 /筛选
+│   └── knowledge/       # 知识库侧实现：取数、公告、剧情、数据集、实体、图库、增量同步归类
+├── tests/               # 单元测试与管线集成测试（含查询与知识库核心回归用例）
+└── tools/kb_eval/       # 知识库检索命中率与以图搜图准确率离线评测脚本
+```
+
+本地开发跑测试时，将 [`agent-core`](https://github.com/JianShanAgent/agent-core) 与 [`site-huiji`](https://github.com/JianShanAgent/site-huiji) 并排放在同级目录（`../agent-core`、`../site-huiji`）后执行：
 
 ```bash
-uv sync --extra dev      # 核心和灰机插件用旁边目录里的源码（../agent-core、../site-huiji）
+uv sync --extra dev
 uv run pytest
 ```
 
-```text
-src/jianshanagent_site_huiji_yys/
-  plugin.yaml      清单（parent: huiji）
-  config.yaml      默认配置
-  wiki.py          查询这一侧：式神、御魂、/筛选
-  knowledge/       知识库这一侧：取数、公告、剧情、数据集、实体、图库、改动归类、报告
-tests/             这个站的测试——也是见山的查询和知识库管线最主要的测试
-tools/kb_eval/     知识库检索、以图搜图的评测脚本
-```
+> **礼貌抓取提醒**：测试默认使用离线桩数据；若对真实线上阴阳师 Wiki 执行取数或评测，请严格保持默认限速（并发不超过 2、每秒不超过 2 个请求）。
 
-对真实的 wiki 取数要守规矩：那是别人的生产站点，并发不超过 2、每秒不超过 2 个请求。
+## 开源许可
 
-插件怎么取名、清单怎么写，见[插件规范](https://github.com/JianShanAgent/agent-core/blob/main/docs/插件规范.md)。全部仓库的目录在[组织主页](https://github.com/JianShanAgent)。
-
-## 许可
-
-代码用 [MIT](LICENSE) 许可。测试数据里引用的 wiki 内容版权归阴阳师 wiki 及其贡献者。
+本仓库代码基于 [MIT License](LICENSE) 开源；测试夹具中引用的词条片段版权归灰机阴阳师 Wiki 及其贡献者所有。
