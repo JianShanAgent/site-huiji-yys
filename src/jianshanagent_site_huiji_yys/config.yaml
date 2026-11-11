@@ -1,0 +1,295 @@
+# 站点插件 yys 的默认配置（配置名 site.yys）：阴阳师 wiki（yys.huijiwiki.com）。
+# core.wiki.yaml 的 site 写成 yys 时生效；它的上级 huiji（灰机平台）会先加载。分三段：
+#   wiki       查询（/查、/筛选）里这个站特有的东西
+#   knowledge  知识库里这个站特有的东西
+#   extend     这个站对通用配置的补充：清洗规则、提示词里的说法、人设……
+
+# ── 查询 ──────────────────────────────────────────────────────────────
+# /查 山风、/查 高铁（昵称）、/查 针女（御魂）：式神和御魂的内容不在页面上，在灰机的 Data 命名空间里
+# （式神索引、式神详细数据、御魂表），由这个插件接进通用的查询
+wiki:
+  soul_page: "御魂检索器"           # 御魂没有独立页面，链接指向这一页；写成 "" 就不给链接
+  commands:
+    filter:                        # /筛选 SSR 拉条（稀有度之间是「或」，标签之间是「且」）
+      name: "筛选"
+      aliases: ["筛"]
+      description: "按稀有度、标签筛选式神"
+
+# ── 知识库 ────────────────────────────────────────────────────────────
+knowledge:
+  pages:
+    # 源码整页只有这一个模板调用的页面，内容完全来自 Data 命名空间，改由对应的 Data 文档入库，页面本身不再渲染：
+    #   {{剧情页面|<剧情ID>|<章节ID>}} → Data:Story/<剧情ID>.json 的一章（页面的标题、ID、链接挂到这一章上）
+    #   {{扫地工}}                    → Data:大神/扫地工/<月份>.json（一帖一篇）
+    # 对应的 Data 内容不存在时，页面照常渲染入库，不会丢。
+    story_template: "剧情页面"
+    post_templates: ["扫地工"]
+
+  # Data 命名空间下的公告帖子合集。文件名以 _ 开头的（_months.json 索引、_scratch_*.json 草稿）一律跳过。
+  # enabled: false 的来源不入库、也不新取数；缓存里已有的帖子只把「标题 + 发布日期」拿来给条目推断日期用。
+  posts:
+    - prefix: "微信/"
+      kind: "wechat"
+      # 暂时关闭：wiki 上的微信文章约六成只有标题、没有正文，等那边把正文补齐后改成 true 重跑即可
+      enabled: false
+    - prefix: "大神/"
+      kind: "dashen"
+      enabled: true
+
+  # 微信文章里只有标题、wiki 没有收录正文的。true：各留一片只含标题 / 日期 / 来源 / 链接的切片，
+  # 元数据带 title_only: true，切片的 embed 字段为 false（下游不拿它做嵌入）；false：不入库，只在报告里计数
+  keep_title_only_posts: true
+
+  # 微信文章末尾的残留：落款（「……的扫地工 参上」）之后是配图署名（pic.@某某）和三四行推荐阅读的标题。
+  # 只在落款出现在最后 window 行以内、它后面不超过 max_lines 行、每行不超过 line_chars 字时才删；落款本身保留
+  wechat_tail:
+    window: 10
+    max_lines: 8
+    line_chars: 80
+
+  story:                             # 剧情：Data:Story/<剧情ID>.json
+    prefix: "Story/"
+
+  # 自动更新：条目页的内容来自哪些 Data 文档（{id} 是式神编号，对应这个式神的条目页）。这样的文档改了，
+  # 条目页自己没有新修订，wiki 上的渲染结果也要等它自己的缓存过期（一天）才变，
+  # 所以改成把页面源码交给 wiki 现渲染一次，马上拿到新内容。
+  # 实测：Data:Character/365.json 改了两次，「入内雀」页面的 touched 没动
+  page_data:
+    - "Data:Character/{id}.json"   # 技能、传记、语音……
+    - "Data:Skilldiff/{id}.json"   # 技能改动记录
+
+  # 图库（以图搜图用的图片索引）收哪些图。找图的门槛和算向量前的预处理在 plugin.knowledge 的 images 段
+  images:
+    enabled: true                    # false = 这个插件不管图库
+    # wiki 上各类图的文件名前缀（后面跟的是角色编号）；写成 "" 就不收那一类
+    art_prefix: "Skin_"              # 立绘大图   Skin_<角色编号>_<皮肤编号>.png
+    card_prefix: "S_"                # 卡面小图   S_<角色编号>_<皮肤编号>.png（立绘的半身特写）
+    avatar_prefix: "Tx_"             # 头像       Tx_<角色编号>_s.png、Tx_<角色编号>_<皮肤编号>.png
+    scroll_prefix: "Hj_"             # 绘卷配图   Hj_<式神编号>_<第几章>.png
+    background_prefix: "Chabg_"      # 条目背景图 Chabg_<式神编号>.png
+    souls: true                      # 御魂的图：<御魂名>.png（图鉴大图）、<御魂名>_s.png（小图标）
+    # 角色的名字、稀有度、条目页和皮肤的名字、获取方式，来自 datasets 段的 character_index / skin；御魂来自 entities.soul
+    awakened_way: "觉醒后获得"        # 皮肤数据里获取方式是这个值的是觉醒造型（和 01 号初始造型一起算「式神立绘」，其余算「皮肤立绘」）
+    soul_page: "御魂检索器"           # 御魂没有自己的条目页，链接指向这一页
+    character_doc: "Data:Character/{id}.json"   # 式神的详细数据：绘卷各章的标题在里面
+
+  entities:
+    # 给切片标实体（字典匹配，不用模型；规则见 entities.py 顶部）
+    # 正式名命中是「确定」的（certain: true）；昵称命中一律保留，但只算「候选」（certain: false，
+    # via 写命中的昵称），是不是真的在指那个实体留给检索去判断。
+    # 昵称只来自 wiki 数据，这里没有字数门槛，也没有排除名单：
+    #   式神   Data:CharacterIndex.json 里 characters 各条目的 nickname
+    #   御魂   Data:Soul.json 里 soul 各条目的 nickname（现在数据里还没有，加了就自动用上）
+    #   阴阳师 Data:Skin.json 里那个角色的条目的 nickname（现在数据里还没有，加了就自动用上）
+    # nickname 可以是字符串、数组，或者没有
+    enabled: true
+    character_index: "Data:CharacterIndex.json"   # 式神正式名、稀有度、昵称
+    soul: "Data:Soul.json"                        # 御魂名（和昵称）
+    # 这些正式名和普通词撞车，或者只有一个字：只在「它自己的页面」「前后都不是汉字 / 字母 / 数字」
+    # 「御魂名紧邻 context_words」或「同一篇文档别处已经确认过」时才标。
+    # 一个字的正式名（泷、季、弈、薰、鸩、荒、觉、狰）自动按这条处理，不用列，而且不走「同一篇文档」那条
+    strict_names:
+      # 抽查过全量命中和被拒的上下文后定的，只留确实撞词的。天照、言灵、般若、妖狐、桔梗、数珠、火灵
+      # 被拒的上下文说的都是式神 / 御魂本身，所以不在此列
+      - "言和"                       # 「预言和鬼族的未来」
+      - "山风"                       # 「山风呼啸」
+      - "夜叉"                       # 「泷夜叉队」（泷夜叉姬的简称）
+      - "蝠翼"                       # 御魂；「蝠翼展开」
+      - "童男"                       # 「童男童女作为供品」
+      - "童女"
+      - "饿鬼"                       # 剧情里泛指「沦为饿鬼」
+      - "鬼灯"                       # 「百鬼灯谜」
+      - "珍珠"                       # 以下是御魂：「镶嵌的珍珠」
+      - "心眼"                       # 「坏心眼」
+      - "被服"
+      - "钟灵"                       # 「钟灵毓秀」「钟灵山川」
+      - "三味"                       # 「三味线」
+      - "树妖"                       # 剧情里的怪物
+      - "雨降"                       # 「春雨降秋叶」
+      - "地藏像"                     # 「点击庭院地藏像」是活动入口
+      - "应声虫"                     # 「应声虫节」
+      - "招财猫"                     # 「礼包屋的招财猫」
+    # 御魂语境：名字附近出现这些字样。两处用到：
+    # 严格名单里的御魂名靠它确认（前后 context_window 个字以内）；
+    # 和妖怪 / 道具同名的御魂名靠它判成「御魂」（否则标中性类型），要求更近（ambiguous_window 个字以内）：
+    # 「胧车两件套」算，「御魂自选次数对胧车同样生效」「胧车探索时，御魂及觉醒材料」说的是玩法，不算
+    context_words: ["御魂", "件套", "套装"]
+    context_window: 12
+    ambiguous_window: 4
+    # 小节标题或页面名里带这些字样的（御魂搭配、御魂检索器），整节都算御魂语境
+    soul_section_words: ["御魂"]
+    # 阴阳师（类型「阴阳师」）：名单从皮肤数据里来——皮肤数据里有、式神索引里没有的角色。
+    # 数据里找不到时才用 onmyoji_fallback
+    skin: "Data:Skin.json"
+    onmyoji_fallback: ["晴明", "神乐", "源博雅", "八百比丘尼", "源赖光", "藤原道长"]
+    # 包含实体名、但说的不是它的更长的词：整个词占住位置，不标
+    shadow_words:
+      - "黑晴明"                     # 另一个角色，不是晴明
+      - "神乐铃"                     # 道具
+    # 御魂名同时是剧情道具名的：没有御魂语境时标「御魂/道具」
+    item_souls: ["天羽羽斩", "月之石", "八咫镜"]
+    # 和妖怪同名的御魂（没有御魂语境时标「御魂/妖怪」）从数据里认：剧情里当过说话人、
+    # 超鬼王的单位、百鬼棋局的棋子。数据认不出来的写在这里
+    monster_souls:
+      - "地震鲶"                     # 配音表里有声优、式神传记里是「掀动地壳的地震鲶」，但剧情数据里没当过说话人
+
+  datasets:
+    # 由 Data 数据集生成的文档（类型 data；规则见 datasets.py 顶部）。某一项写成 "" 就不生成那一类
+    enabled: true
+    character_index: "Data:CharacterIndex.json"   # 只用来查角色编号对应的名字和条目页，不生成文档
+    skin: "Data:Skin.json"                        # 皮肤获取方式：一个角色一篇「X的皮肤」
+    onmyoji_page: "阴阳师"                         # 阴阳师没有自己的条目页，皮肤文档的链接指向这里
+    zzq:                                          # 百鬼棋局：式神、符咒、御魂各一篇
+      character: "Data:Zzq/character.json"
+      fuzhou: "Data:Zzq/fuzhou.json"
+      soul: "Data:Zzq/soul.json"
+      page: "百鬼棋局"
+    month_illustration:                           # 花合战对白：有对白的月份各一篇
+      data: "Data:Monthillustration.json"
+      page: "花合战/{yyyymm}"
+      # 对白里的说话人编号在式神索引和皮肤数据里查不到时用这张表。只写从对白正文能确认的：
+      # 204 自称「小白」；14 的台词是黑晴明的。107（2020-03）确认不了，留着编号
+      speakers:
+        "204": "小白"
+        "14": "黑晴明"
+    buffs:                                        # 状态说明：只补库里没有的
+      data: "Data:SkillBuffs.json"
+      tips: "Data:SkillTips.json"                 # 解析 [tips_N] 占位符用
+      page: "技能检索"
+    super_ghost:                                  # 超鬼王：只补页面没有渲染的部分
+      prefix: "SuperGhost/"                       # 各年份一份
+      page: "超鬼王"
+    match_min_chars: 8                            # 比对「在不在库里」时，一句话至少这么多个字才拿去比
+
+# ── 对通用配置的补充 ──────────────────────────────────────────────────
+# 配置名 → 要并进去的内容：名单和通用的合在一起，单个值以这里写的为准。
+# 这一段读配置时就并进去了，不能在管理后台里改（要改这些项，去改它们所在的那份配置）
+extend:
+  # /查 的说明：这个站能查的不只是页面
+  plugin.wiki_query:
+    commands:
+      lookup:
+        description: "查询式神、御魂或 wiki 条目"
+
+  # 查证工作流：问题分哪几类，提示词里的说法
+  plugin.research:
+    analysis:
+      # 问题归哪一类（告诉查证员，也记进日志，方便以后看用户都在问什么）
+      topics: [式神, 御魂, 技能机制, 活动, 皮肤, 剧情, 玩法, 版本公告, 周边同人, 其它]
+    wording:
+      names: "式神、御魂、阴阳师、其它角色的名字或外号，以及活动、皮肤、玩法、剧情章节的名字"
+      generic_words: [式神, 活动, 皮肤]
+      facts: "数值、日期、名字、获取方式、技能效果、剧情经过、台词"
+      mixups: "别的年份 / 别的活动 / 别的角色"
+      analyst_note: "同名活动每年都有，看清每条资料的日期；用户没说是哪一期，就按资料里最近的一期答，并说明是哪一期。"
+      reviewer_note: "同名活动每年都有，要核对资料上的日期。"
+      keyword_nouns: "式神名、活动名、皮肤名、剧情章节名"
+      keyword_example: "苍风一目连 技能改动"
+
+  # 对话入口：什么问题该查
+  plugin.chat:
+    tools_with_research: [wiki_filter]   # 按稀有度、标签列式神名单：知识库检索列不全名单，所以留给对话模型
+    prompts:
+      facts: "涉及游戏内容（式神、御魂、技能、数值、活动）必须先用工具查 wiki，以工具结果为准，不要凭记忆回答；工具查不到就直说没查到。"
+      facts_research: "涉及游戏内容（式神、御魂、技能、数值、皮肤、活动、公告、剧情、玩法）的问题，一律立刻调用 research 工具：你不需要分析问题、不需要自己想答案，也不要猜题意、不要凭记忆回答、不要自己写链接。拿不准是不是在问游戏时（出现了你不认识的名字、外号、简称），也调用 research，不要反问用户。闲聊、打招呼、问你是谁，直接回复。"
+      images_research: "用户这条消息带了图片。如果是在问图里是谁、是哪个皮肤、出自哪里，或者只发了图片没有说话：调用 research，图片会一并交给它做以图搜图；你自己不要凭印象认角色或皮肤。这时 context 里只写图片上看得见的文字和客观内容（颜色、物件、界面上的字），不要猜名字。"
+      research_description: "查证阴阳师相关的问题，并把结论直接回复给用户。凡是涉及游戏内容的问题（式神、御魂、技能、数值、皮肤、活动、公告、版本更新、剧情、玩法、攻略、获取方式、周边、同人）都必须调用它，不要凭记忆回答。用户的原话会原样交给它，它依次查 wiki 知识库、站内搜索（必要时联网），核对无误后把结论发给用户；调用以后你不用再回复。一条消息只调用一次。"
+
+  plugin.memory:
+    preference_examples: "怎么称呼、常用的式神和阵容、游戏进度"
+
+  # 人设（管理后台里改过的话，以改过的为准）
+  persona/persona.default:
+    name: 阴阳师 Wiki 助手
+    description: >
+      你是阴阳师 Wiki 的查询助手，回答以 wiki 数据为准，不确定时给出条目链接。
+    personality: 简洁、可靠、游戏术语准确
+    system_prompt: |
+      你是阴阳师 Wiki 助手。事实性问题必须通过工具查询 wiki，不要编造数值或技能效果。
+      回复简洁，适合 QQ 阅读；需要细节时附上 wiki 链接。
+    example_dialogues:
+      - user: 山风技能是什么？
+        assistant: 我先查一下 wiki 上「山风」的技能描述。
+
+  # 知识库：这个站的清洗规则、排除的页面、日期的门槛、验收点
+  plugin.knowledge:
+    sources:
+      pages:
+        # 明确不要的页面（标题完全一致）
+        exclude_titles:
+          - "首页"                   # 门户页：内容全部来自嵌入的 首页/最新版本、首页/时尚、首页/超鬼王特攻 等子页面，那些子页面各自入库
+        # 页面渲染结果只有一句模块报错的（它引用的 Data 文档不存在），不入库：正文不足 broken_max_chars 且含下列字样
+        broken_markers: ["未找到数据页"]
+    clean:
+      # 按 class 整块移除（命中任意一个即移除）
+      remove_classes:
+        - shiki-nav                    # 式神录导航：278 个式神页各带一份，合计约 50 万字，占渲染文字的 18%
+        - story-nav                    # 剧情页的 上一章 / 返回 / 下一章
+        - sdg-nav                      # 扫地工月份翻页
+        - tabber-filter                # 标签页的切换按钮（按钮文字已提为对应内容的小标题）
+        - ss-controls                  # 技能检索 / 式神AI / 传记解锁条件 / 御魂检索器 / 速度检索 的筛选控件和使用提示
+        - ss-hint
+        - ss-refbadge                  # 技能检索状态列表里名称后的「【减益、状态】」角标，说明文字开头已有同样的字
+        - sai-controls
+        - sai-hint
+        - zj-controls
+        - soul-controls
+        - attr-controls
+        - attr-group-arrow             # 速度检索：折叠箭头「▾」和每档的人数角标
+        - attr-group-count
+        - character-search-wrapper     # 角色检索：内容全靠脚本加载，渲染结果只有「共 0 个式神」的空壳
+        - index-icon-bar               # 首页图标导航
+        - countdown_range              # 首页倒计时（渲染结果只有「天 时 分 秒」）
+      # 提升为小标题的元素：class → 相对层级（1 = 所在章节的下一级，2 = 再下一级）。切片路径能带上它
+      heading_classes:
+        skill-name: 1                  # 式神页 / 技能检索：技能名
+        sai-title: 1                   # 式神AI：式神名 + 稀有度
+        soul-name: 1                   # 御魂检索器：御魂名
+        zj-name: 1                     # 传记解锁条件：式神名
+        sgw-section-title: 1           # 超鬼王：星级分组
+        sgw-name: 2                    # 超鬼王：鬼王名
+        skilldiff-text-title: 2        # 式神页技能改动记录：技能名
+        zzq-bond-title: 1              # 百鬼棋局/羁绊图鉴：羁绊名
+      # 给没有标题的区块补一个标题（class → 标题文字），免得它被算进上一个小节
+      section_titles:
+        chara-ref-wrap: "状态与术语说明"   # 式神页技能列表后面的状态 / 术语汇总，原页面没有标题
+        ss-refresults: "状态与术语说明"    # 技能检索页的同类列表
+      # 只有图标的徽章：class → 文字，接到它后面那个兄弟元素（它标注的名字）末尾
+      badge_texts:
+        battle-win-badge: "（胜）"     # 洪狐天运·狐象之争：每天两方阵容里获胜的一方
+      # 「名称 + 说明」成对出现的元素：名称后补「：」并与紧随其后的说明并成一行
+      term_classes:
+        - chara-ref-name               # 式神页：状态 / 术语名
+        - gift-item-name               # 式神页：心契礼物名
+        - ss-refname                   # 技能检索：状态名
+        - attr-name                    # 式神页：属性名（攻击 / 生命 …）
+        - sgw-skill-name               # 超鬼王：技能名
+      # 这些块级元素按行内处理，同一组并成一行（空格隔开）
+      inline_classes:
+        - attr-item                    # 式神页：八项基础属性，原本一项一个 div
+      # 在元素文字前补一段说明（多为原本靠图标或位置表达的含义）
+      prefix_classes:
+        cost: "鬼火消耗："
+        skill-tags: "标签："
+        gift-item-getway: "获取途径："
+        soul-way: "获取途径："
+        skilldiff-old: "改动前："
+        skilldiff-new: "改动后："
+      # 检索页里的卡片：卡片 class → 卡片头部 class。头部链接指向已有条目的卡片整张移除（内容在那个条目里有完整版本），
+      # 指向未创建页面的保留。技能检索的 953 张技能卡里，只有阴阳师（没有自己的页面）的技能留下
+      linked_cards:
+        ss-card: ss-card-head
+      # 表格里表示「没有」的占位值：一行除第一格外全是占位值就去掉这一行（式神语音表里没有语音的条目写的是「/」）
+      table_placeholders: ["/"]
+      # 标签页容器：每个标签页的内容前加上对应按钮的文字作为小标题
+      tabber_class: "tabber"
+      tabber_item_class: "tabber-item"
+      tabber_label_class: "tabber-filter-item"
+    dates:
+      min_year: 2016                 # 游戏 2016 年上线：更早的年份（景点介绍里的「2002年底」）不算页面写了年份
+      infer:
+        exclude_prefixes: ["首页/"]  # 首页组件（御魂自选、超鬼王特攻）的日期每天在变，创建时间和旧公告都代表不了
+    report:
+      acceptance:
+        page: "为崽而战·浮世之航"
+        must_contain: ["梦山白藏主", "17,613,660"]

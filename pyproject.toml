@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jianshanagent-site-huiji-yys"
+version = "0.1.0"
+description = "JianShanAgent 站点插件（灰机平台上的站）：阴阳师 wiki"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "JianShanAgent" }]
+dependencies = ["jianshanagent", "jianshanagent-site-huiji"]
+
+# 登记成站点插件：名字是插件 id，值是包路径（规范见核心仓库的 docs/插件规范.md）
+[project.entry-points."jianshanagent.sites"]
+yys = "jianshanagent_site_huiji_yys"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jianshanagent_site_huiji_yys"]
+
+# 开发时用旁边目录里的核心和上级插件（几个仓库并排放在同一个目录下）
+[tool.uv.sources]
+jianshanagent = { path = "../agent-core", editable = true }
+jianshanagent-site-huiji = { path = "../site-huiji", editable = true }
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.4",
+  "mypy>=1.10",
+  "types-PyYAML",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
