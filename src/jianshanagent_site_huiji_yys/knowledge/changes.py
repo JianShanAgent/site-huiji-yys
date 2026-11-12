@@ -24,10 +24,10 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
+from jianshanagent.platforms.huiji.knowledge import DATA_KIND, LABEL_DATA, HuijiKnowledge
 from jianshanagent.plugins.knowledge.changes import Change, ChangeContext, Plan
 from jianshanagent.plugins.knowledge.fetcher import DiskCache
 from jianshanagent.plugins.knowledge.site import Classifier, Verdict
-from jianshanagent_site_huiji.knowledge import DATA_KIND, LABEL_DATA, HuijiPlugin
 
 from jianshanagent_site_huiji_yys.knowledge.settings import YysConfig
 
@@ -84,7 +84,7 @@ def _matched_id(patterns: Sequence[re.Pattern[str]], name: str) -> str | None:
 
 def classifier(
     cfg: YysConfig,
-    huiji: HuijiPlugin,
+    huiji: HuijiKnowledge,
     ctx: ChangeContext,
     *,
     pages_by_character: Mapping[str, str] | None = None,

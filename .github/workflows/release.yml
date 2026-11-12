@@ -1,0 +1,68 @@
+# 发版：推一个 v0.1.1 这样的标签上来，就构建安装包并发一个 GitHub Release。
+#
+# 管理后台的「Wiki」页从站点目录里添加这个站时，下载的就是这里发出来的最新一个 Release 带的安装包
+# （jianshanagent_site_<id>-<版本>-py3-none-any.whl，校验和在 SHA256SUMS 里）。
+# 做法：改 pyproject.toml 里的 version、提交，打一个带附注的标签（附注就是更新说明），推上来。
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # 测试用旁边目录里的核心（pyproject.toml 的 [tool.uv.sources] 写的是 ../agent-core），所以两个仓库并排放
+      - uses: actions/checkout@v7
+        with:
+          path: site
+
+      - uses: actions/checkout@v7
+        with:
+          repository: JianShanAgent/agent-core
+          path: agent-core
+
+      - name: 标签要和 pyproject.toml 里的版本一致
+        working-directory: site
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -n 1)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::标签是 $GITHUB_REF_NAME，pyproject.toml 里的版本是 $version：先改版本号、提交，再打标签"
+            exit 1
+          fi
+
+      # checkout 拿到的标签不带附注；更新说明取自标签的附注，所以把标签本身再取一次
+      - name: 取标签的附注
+        working-directory: site
+        run: git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+
+      # setup-uv 从 v8 起没有只写大版本的标签（v10 这样写找不到），要写全
+      - uses: astral-sh/setup-uv@v10.3.3
+
+      - name: 测试
+        working-directory: site
+        run: |
+          uv sync --extra dev
+          uv run pytest -q
+
+      - name: 打安装包
+        working-directory: site
+        run: |
+          package=$(sed -n 's/^name = "\(.*\)"/\1/p' pyproject.toml | head -n 1 | tr '-' '_')
+          uv build --wheel --out-dir dist
+          cd dist
+          test -f "${package}-${GITHUB_REF_NAME#v}-py3-none-any.whl"
+          sha256sum *.whl > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: 发 Release
+        working-directory: site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.whl dist/SHA256SUMS \
+            --title "$GITHUB_REF_NAME" --notes-from-tag --verify-tag

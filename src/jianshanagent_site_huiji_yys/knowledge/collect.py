@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from jianshanagent.core.logging import get_logger
+from jianshanagent.platforms.huiji.knowledge import HuijiKnowledge
 from jianshanagent.plugins.knowledge.collect import CollectContext, RawCorpus
 from jianshanagent.plugins.knowledge.models import KIND_ANNOUNCEMENT, KIND_STORY
 from jianshanagent.plugins.knowledge.sources import (
@@ -23,7 +24,6 @@ from jianshanagent.plugins.knowledge.sources import (
     PageRef,
     single_template_call,
 )
-from jianshanagent_site_huiji.knowledge import HuijiPlugin
 
 from jianshanagent_site_huiji_yys.knowledge.settings import YysConfig
 from jianshanagent_site_huiji_yys.knowledge.story import story_chapters, story_id_of
@@ -71,7 +71,7 @@ def is_auxiliary_data(ref: PageRef) -> bool:
     return ref.basename.startswith("_")
 
 
-def listing_spec(cfg: YysConfig, huiji: HuijiPlugin) -> ListingSpec:
+def listing_spec(cfg: YysConfig, huiji: HuijiKnowledge) -> ListingSpec:
     """列页面清单时另外要列的 Data 文档：公告合集、剧情、按前缀取的数据集，和点名的那几份。"""
     prefixes = [
         *(p.prefix for p in cfg.sources.posts),
@@ -83,7 +83,7 @@ def listing_spec(cfg: YysConfig, huiji: HuijiPlugin) -> ListingSpec:
     )
 
 
-async def select_pages(ctx: CollectContext, cfg: YysConfig, huiji: HuijiPlugin) -> None:
+async def select_pages(ctx: CollectContext, cfg: YysConfig, huiji: HuijiKnowledge) -> None:
     """认出「内容全在 Data 里」的页面，顺带把剧情和公告合集取下来（认的时候要核对它们）。"""
     src = cfg.sources
     source, listing = ctx.source, ctx.listing
@@ -156,7 +156,7 @@ async def select_pages(ctx: CollectContext, cfg: YysConfig, huiji: HuijiPlugin) 
             ctx.replace(ref, "posts", kind=KIND_ANNOUNCEMENT)
 
 
-async def collect_data(ctx: CollectContext, cfg: YysConfig, huiji: HuijiPlugin) -> None:
+async def collect_data(ctx: CollectContext, cfg: YysConfig, huiji: HuijiKnowledge) -> None:
     """实体字典和数据集（Data:CharacterIndex.json、Data:Soul.json、Data:Skin.json……）。"""
     source, listing = ctx.source, ctx.listing
     own = yys_corpus(ctx.corpus)

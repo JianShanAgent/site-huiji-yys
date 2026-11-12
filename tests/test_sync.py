@@ -17,6 +17,7 @@ import pytest
 from jianshanagent.core.config import load_config
 from jianshanagent.core.db import Database
 from jianshanagent.core.embedding import EmbeddingProvider
+from jianshanagent.platforms.huiji.knowledge import HuijiKnowledge
 from jianshanagent.plugins.knowledge.changes import (
     Change,
     ChangeContext,
@@ -66,6 +67,10 @@ from jianshanagent.plugins.knowledge.sources import (
 from jianshanagent.plugins.knowledge.store import KbChunk, MemoryKnowledgeStore
 from jianshanagent.plugins.knowledge.sync import (
     HEARTBEAT_FILE,
+    KB_BUILDING,
+    KB_NONE,
+    KB_READY,
+    KB_REQUESTED,
     RESULT_CHECKED,
     RESULT_PROBLEM,
     RESULT_UNCHANGED,
@@ -77,13 +82,16 @@ from jianshanagent.plugins.knowledge.sync import (
     SyncState,
     Targets,
     _locked,
+    cancel_build,
     full_due,
     healthy,
+    kb_state,
     load_state,
+    read_build,
+    request_build,
     save_state,
     sync_once,
 )
-from jianshanagent_site_huiji.knowledge import HuijiPlugin
 from PIL import Image
 
 from jianshanagent_site_huiji_yys.knowledge import YysPlugin
@@ -118,7 +126,7 @@ YYS = YysConfig(
 
 
 def make_sites(yys: YysConfig = YYS) -> SiteSet:
-    huiji = HuijiPlugin()
+    huiji = HuijiKnowledge()
     return SiteSet([huiji, YysPlugin(huiji, yys)])
 
 
@@ -506,7 +514,7 @@ def test_plan_tells_what_each_kind_of_change_calls_for(tmp_path: Path) -> None:
     assert not plan_changes(upload, settings, ChangeContext(settings, cache)).images
 
     # 只装了灰机插件：不知道哪份数据对应哪些页面，Data 的改动一律当公共数据（等着全部重取）
-    huiji_only = make_settings(tmp_path, sites=SiteSet([HuijiPlugin()]))
+    huiji_only = make_settings(tmp_path, sites=SiteSet([HuijiKnowledge()]))
     data = [Change(1, "2030-01-01T00:00:00Z", 3500, "Data:Character/365.json", "edit")]
     plain = plan_changes(data, huiji_only)
     assert plain.shared_data_at == "2030-01-01T00:00:00Z" and not plain.kb
@@ -779,6 +787,65 @@ async def test_nothing_is_done_on_a_machine_without_the_files(tmp_path: Path) ->
     assert "嵌入接口" in (await sync_once(env))["problems"][0]
 
 
+async def test_a_requested_build_fetches_everything_then_it_is_incremental(tmp_path: Path) -> None:
+    # 请求数的上限只管平常的增量：从头建不受它限制
+    site, settings = make_site(), make_settings(tmp_path, max_requests=3, full_every_days=0)
+    site.put_data("Data:Skin.json", SKINS)
+    site.files = {"Skin_1_01.png": png((200, 30, 30)), "Skin_1_02.png": png((30, 30, 200))}
+    store, images, embedded = MemoryKnowledgeStore(), MemoryImageStore(), []
+    transport = httpx.MockTransport(site)
+    env = SyncEnv(
+        settings=settings,
+        images=IMAGES,
+        provider=PROVIDER,
+        targets=Targets(store, images, MemoryStatusStore()),
+        wiki_transport=transport,
+        embed_transport=fake_embedder(embedded),
+        cdn_transport=transport,
+    )
+    out = settings.output_dir
+    assert kb_state(out)["state"] == KB_NONE
+    # 管理后台的「Wiki」页里点了「建知识库」
+    request_build(out)
+    assert kb_state(out)["state"] == KB_REQUESTED
+
+    # wiki 正好整个连不上：没做完，请求留着，下一轮接着做
+    env.wiki_transport = httpx.MockTransport(lambda _request: httpx.Response(502))
+    record = await sync_once(env)
+    assert record["result"] == RESULT_PROBLEM and "下一轮接着做" in record["problems"][0]
+    assert kb_state(out)["state"] == KB_BUILDING and "下一轮接着做" in kb_state(out)["problem"]
+    assert (await store.info()).chunks == 0
+    assert not cancel_build(out)  # 已经开始建的不能撤回
+
+    env.wiki_transport = transport
+    record = await sync_once(env)
+    assert record["result"] == RESULT_UPDATED
+    assert record["build"] == {"documents": 3, "chunks": 3, "failed": 0, "images": 2}
+    assert len(site.asked) > 3  # 不受一轮三个请求的上限限制
+    # 切片和图片都算了向量、进了库，不过闸门（全是新的）
+    assert (await store.info()).with_vectors == 3 and (await images.info()).with_vectors == 2
+    assert kb_state(out) == {
+        "state": KB_READY,
+        "requested_at": None,
+        "started_at": None,
+        "problem": "",
+    }
+    assert read_build(out) is None
+
+    # 以后就是普通的增量：wiki 没有新的改动，一个请求
+    site.changes.clear()
+    site.asked.clear()
+    quiet = await sync_once(env)
+    assert site.asked == ["changes"] and quiet["result"] == RESULT_UNCHANGED
+
+    # 文件已经有了再点：不会重来一遍
+    request_build(out)
+    assert kb_state(out)["state"] == KB_READY
+    site.asked.clear()
+    assert "build" not in await sync_once(env) and site.asked == ["changes"]
+    assert read_build(out) is None
+
+
 async def test_a_big_drop_is_not_written_until_someone_forces_it(tmp_path: Path) -> None:
     setup = await make_setup(tmp_path)
     await setup.round()
@@ -836,7 +903,8 @@ async def test_only_one_round_runs_at_a_time(tmp_path: Path) -> None:
 
 
 def at(hour: int, *, day: int = 12) -> float:
-    return time.mktime((2026, 11, day, hour, 0, 0, 0, 0, -1))
+    # 年份要比跑测试的日子晚：第一轮从缓存文件的时间（真实的）往后读最近更改，早于它的改动读不到
+    return time.mktime((2029, 11, day, hour, 0, 0, 0, 0, -1))
 
 
 def test_full_refresh_waits_for_the_window_the_interval_and_the_wiki_cache() -> None:

@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "JianShanAgent" }]
-dependencies = ["jianshanagent", "jianshanagent-site-huiji"]
+# 要用核心带着的灰机平台（jianshanagent.platforms.huiji），0.3.0 起才有
+dependencies = ["jianshanagent>=0.3.0"]
 
 # 登记成站点插件：名字是插件 id，值是包路径（规范见核心仓库的 docs/插件规范.md）
 [project.entry-points."jianshanagent.sites"]
@@ -19,10 +20,9 @@ huiji_yys = "jianshanagent_site_huiji_yys"
 [tool.hatch.build.targets.wheel]
 packages = ["src/jianshanagent_site_huiji_yys"]
 
-# 开发时用旁边目录里的核心和上级插件（几个仓库并排放在同一个目录下）
+# 开发时用旁边目录里的核心（几个仓库并排放在同一个目录下）
 [tool.uv.sources]
 jianshanagent = { path = "../agent-core", editable = true }
-jianshanagent-site-huiji = { path = "../site-huiji", editable = true }
 
 [project.optional-dependencies]
 dev = [

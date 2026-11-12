@@ -41,6 +41,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from jianshanagent.core.logging import get_logger
+from jianshanagent.platforms.huiji.knowledge import HuijiKnowledge
 from jianshanagent.plugins.knowledge.fetcher import FetchError
 from jianshanagent.plugins.knowledge.image_collect import (
     Catalog,
@@ -51,7 +52,6 @@ from jianshanagent.plugins.knowledge.image_collect import (
 from jianshanagent.plugins.knowledge.image_store import KbImage
 from jianshanagent.plugins.knowledge.markdown import normalize_text
 from jianshanagent.plugins.knowledge.sources import PageRef, WikiSource
-from jianshanagent_site_huiji.knowledge import HuijiPlugin
 
 from jianshanagent_site_huiji_yys.knowledge.datasets import Roster
 from jianshanagent_site_huiji_yys.knowledge.settings import CatalogSettings, YysEnv
@@ -471,7 +471,7 @@ def _scroll_owners(files: Iterable[str], prefix: str) -> list[str]:
 
 
 async def gather(
-    source: WikiSource, settings: YysEnv, huiji: HuijiPlugin
+    source: WikiSource, settings: YysEnv, huiji: HuijiKnowledge
 ) -> tuple[dict[str, WikiFile], CatalogData]:
     """取齐文件清单和数据文档。离线时用上次联网存下的快照，数据文档读缓存。"""
     cache = source.cache
@@ -548,7 +548,7 @@ def data_titles(settings: YysEnv) -> dict[str, str]:
     }
 
 
-async def image_catalog(source: WikiSource, settings: YysEnv, huiji: HuijiPlugin) -> Catalog:
+async def image_catalog(source: WikiSource, settings: YysEnv, huiji: HuijiKnowledge) -> Catalog:
     """选图、生成记录。名字和说明来自的数据没取到时照样生成，但在 ``problem`` 里说明
     （少了这些，图片会认不出是谁的而被丢掉，或者名字全变成「待补」）。"""
     files, data = await gather(source, settings, huiji)

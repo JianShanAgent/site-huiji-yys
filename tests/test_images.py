@@ -19,6 +19,7 @@ from jianshanagent.core.db import Database
 from jianshanagent.core.embedding import EmbeddingClient, EmbeddingError, EmbeddingProvider
 from jianshanagent.core.images import ImageError, normalize_image
 from jianshanagent.core.plugin import PluginContext
+from jianshanagent.platforms.huiji.knowledge import HuijiKnowledge
 from jianshanagent.plugins.knowledge.fetcher import DiskCache, WikiFetcher
 from jianshanagent.plugins.knowledge.image_collect import (
     WikiFile,
@@ -51,7 +52,6 @@ from jianshanagent.plugins.knowledge.settings import (
 )
 from jianshanagent.plugins.knowledge.site import SiteSet
 from jianshanagent.plugins.knowledge.sources import WikiSource
-from jianshanagent_site_huiji.knowledge import HuijiPlugin
 from PIL import Image
 
 from jianshanagent_site_huiji_yys.knowledge import YysPlugin
@@ -74,7 +74,7 @@ IMAGES = ImageSettings(
     jpeg_quality=80,
     embed_batch_size=2,
 )
-HUIJI = HuijiPlugin()
+HUIJI = HuijiKnowledge()
 YYS = YysPlugin(HUIJI, YysConfig())
 SETTINGS = Settings(
     wiki=WikiSettings(

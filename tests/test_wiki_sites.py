@@ -199,7 +199,7 @@ async def test_the_shipped_sites_add_characters_souls_and_the_filter_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo = load_config(REPO_CONFIG)
-    names = ("plugin.wiki_query", "core.wiki", "site.huiji", "site.huiji_yys")
+    names = ("plugin.wiki_query", "core.wiki", "platform.huiji", "site.huiji_yys")
     files = {name: repo.get(name) for name in names}
     (wiki,) = files["core.wiki"]["wikis"]
     files["core.wiki"] = files["core.wiki"] | {"wikis": [wiki | {"api_url": f"{SITE}/api.php"}]}

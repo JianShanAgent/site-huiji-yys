@@ -5,5 +5,5 @@ from jianshanagent.testing.conformance import check_plugin
 
 def test_conforms_to_the_plugin_spec() -> None:
     manifest = check_plugin("jianshanagent_site_huiji_yys")
-    assert (manifest.id, manifest.parent) == ("huiji_yys", "huiji")
+    assert (manifest.id, manifest.platform) == ("huiji_yys", "huiji")
     assert set(manifest.capabilities) == {"wiki", "knowledge", "extend"}

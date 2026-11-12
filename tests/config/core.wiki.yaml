@@ -12,6 +12,6 @@ wikis:
     # wiki 在 Cloudflare 后面，请求要带放行请求头才不会被挑战页拦截。
     # 这里只写请求头名；密钥在 secrets.yaml 的 wiki.huiji.authkey（不入库）
     auth_header: "X-authkey"
-    # 站点插件：灰机上的阴阳师 wiki（jianshanagent-site-huiji-yys），
-    # 它的上级灰机平台（jianshanagent-site-huiji）会先加载
+    # 站点插件：灰机上的阴阳师 wiki（jianshanagent-site-huiji-yys）。
+    # 它是灰机平台上的站，核心带着的灰机那一份会先加载
     site: huiji_yys

@@ -7,8 +7,8 @@ from typing import Any
 
 import httpx
 from jianshanagent.core.wiki import WikiSite
+from jianshanagent.platforms.huiji.wiki import HuijiData
 from jianshanagent.plugins.wiki_query.client import WikiQueryClient
-from jianshanagent_site_huiji.wiki import HuijiData
 
 from jianshanagent_site_huiji_yys.wiki import YysProvider
 

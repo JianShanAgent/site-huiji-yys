@@ -8,6 +8,7 @@ import dataclasses
 import json
 from pathlib import Path
 
+from jianshanagent.platforms.huiji.knowledge import HuijiKnowledge
 from jianshanagent.plugins.knowledge.chunker import ChunkStats, chunk_document
 from jianshanagent.plugins.knowledge.cleaner import clean, parse_html
 from jianshanagent.plugins.knowledge.collect import RawCorpus
@@ -57,7 +58,6 @@ from jianshanagent.plugins.knowledge.settings import (
 )
 from jianshanagent.plugins.knowledge.site import SiteSet
 from jianshanagent.plugins.knowledge.sources import Fetched, Listing, PageRef, single_template_call
-from jianshanagent_site_huiji.knowledge import HuijiPlugin
 
 from jianshanagent_site_huiji_yys.knowledge import YysPlugin
 from jianshanagent_site_huiji_yys.knowledge.collect import PLUGIN_ID, YysCorpus
@@ -290,7 +290,7 @@ def test_single_template_call() -> None:
 # ── 公告：来源开关、转发帖、只有标题的文章、微信文末 ──────────────────
 
 DATES = DateSettings(min_year=2016, exclude_prefixes=("首页/",))
-HUIJI = HuijiPlugin()
+HUIJI = HuijiKnowledge()
 YYS = YysPlugin(
     HUIJI,
     YysConfig(

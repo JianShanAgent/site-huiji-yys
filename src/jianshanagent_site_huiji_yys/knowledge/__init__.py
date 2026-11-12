@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import Any
 
 from jianshanagent.core.logging import get_logger
+from jianshanagent.platforms.huiji.knowledge import HuijiKnowledge
 from jianshanagent.plugins.knowledge.changes import ChangeContext
 from jianshanagent.plugins.knowledge.collect import CollectContext, RawCorpus
 from jianshanagent.plugins.knowledge.image_collect import Catalog
@@ -28,7 +29,6 @@ from jianshanagent.plugins.knowledge.report import ReportWriter
 from jianshanagent.plugins.knowledge.settings import Settings
 from jianshanagent.plugins.knowledge.site import Classifier, SitePlugin, SiteSetup
 from jianshanagent.plugins.knowledge.sources import ListingSpec, WikiSource
-from jianshanagent_site_huiji.knowledge import HuijiPlugin
 
 from jianshanagent_site_huiji_yys.knowledge import build, changes, collect, images, report
 from jianshanagent_site_huiji_yys.knowledge.collect import PLUGIN_ID
@@ -75,7 +75,7 @@ def moved_keys(knowledge: dict[str, Any]) -> list[tuple[str, str]]:
 class YysPlugin(SitePlugin):
     id = PLUGIN_ID
 
-    def __init__(self, huiji: HuijiPlugin, cfg: YysConfig | None = None):
+    def __init__(self, huiji: HuijiKnowledge, cfg: YysConfig | None = None):
         self.huiji = huiji
         self.cfg = cfg or YysConfig()
 
@@ -138,7 +138,7 @@ class YysPlugin(SitePlugin):
 
 
 def create(setup: SiteSetup) -> YysPlugin:
-    huiji = setup.parent(HuijiPlugin)  # 要用灰机的 Data 接口
+    huiji = setup.platform(HuijiKnowledge)  # 要用灰机的 Data 接口
     for old, new in moved_keys(setup.config.plugin("knowledge")):
         logger.warning(
             "kb_config_moved",

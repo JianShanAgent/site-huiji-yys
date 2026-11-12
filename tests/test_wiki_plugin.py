@@ -45,7 +45,7 @@ def _register(monkeypatch: pytest.MonkeyPatch, fake: FakeWiki) -> PluginContext:
         partial(WikiQueryClient, transport=httpx.MockTransport(fake)),
     )
     repo = load_config(Path(__file__).resolve().parent / "config")
-    names = ("plugin.wiki_query", "core.wiki", "site.huiji", "site.huiji_yys")
+    names = ("plugin.wiki_query", "core.wiki", "platform.huiji", "site.huiji_yys")
     files = {name: repo.get(name) for name in names}
     (wiki,) = files["core.wiki"]["wikis"]
     files["core.wiki"] = files["core.wiki"] | {"wikis": [wiki | {"api_url": f"{SITE}/api.php"}]}

@@ -24,6 +24,7 @@ from typing import Any
 
 from jianshanagent.core.logging import get_logger
 from jianshanagent.core.messages import InboundMessage, OutboundMessage
+from jianshanagent.platforms.huiji.wiki import HuijiData
 from jianshanagent.plugins.wiki_query.client import (
     NameMatch,
     PageContent,
@@ -37,7 +38,6 @@ from jianshanagent.plugins.wiki_query.provider import (
     SiteSetup,
     WikiProvider,
 )
-from jianshanagent_site_huiji.wiki import HuijiData
 
 logger = get_logger(__name__)
 
@@ -511,7 +511,7 @@ def create(setup: SiteSetup) -> YysProvider:
     raw = setup.raw.get("wiki") or {}
     soul_page = raw["soul_page"] if "soul_page" in raw else "御魂检索器"
     return YysProvider(
-        setup.parent(HuijiData),  # 数据在灰机的 Data 命名空间里
+        setup.platform(HuijiData),  # 数据在灰机的 Data 命名空间里
         soul_page=str(soul_page or ""),
         filter_command=(raw.get("commands") or {}).get("filter") or {},
     )

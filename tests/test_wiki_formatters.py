@@ -1,9 +1,9 @@
 from functools import partial
 
+from jianshanagent.platforms.huiji.wiki import HuijiData
 from jianshanagent.plugins.wiki_query import formatters
 from jianshanagent.plugins.wiki_query.client import KIND_PAGE, PageContent, SearchHit
 from jianshanagent.plugins.wiki_query.formatters import format_disambiguation, format_not_found
-from jianshanagent_site_huiji.wiki import HuijiData
 
 from jianshanagent_site_huiji_yys.wiki import (
     KIND_CHARACTER,

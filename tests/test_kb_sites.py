@@ -1,8 +1,8 @@
-"""知识库的站点插件：核心对任何 MediaWiki 都能用，平台和站点特有的东西由插件带进来。
+"""知识库的站点插件：通用的代码对任何 MediaWiki 都能用，平台的东西核心带着，站点特有的由插件带进来。
 
 - 一个插件都不装：一个普通的 MediaWiki（接口在 ``/w/api.php``，没有灰机的 Data 接口）
   能跑完预处理、出报告、做自动更新；
-- 插件怎么加载：``core.wiki.yaml`` 的 ``site`` 只写最末一级，上级顺着清单带出来；
+- 插件怎么加载：``core.wiki.yaml`` 的 ``site`` 写站点插件的 id，它的平台跟着加载；
 - 插件对通用配置的补充（它 ``config.yaml`` 里的 ``extend``）怎么并进去；
 - 自己写的插件（一个包的路径）能插手取数、建文档、标注、报告、自动更新。
 
@@ -22,6 +22,7 @@ import pytest
 import yaml
 from jianshanagent.core.config import load_config, locked_changes, overlay
 from jianshanagent.core.embedding import EmbeddingProvider
+from jianshanagent.platforms.huiji.knowledge import HuijiKnowledge
 from jianshanagent.plugins.knowledge.changes import Change, plan_changes
 from jianshanagent.plugins.knowledge.cli import main
 from jianshanagent.plugins.knowledge.embed import embed_chunks
@@ -52,7 +53,6 @@ from jianshanagent.plugins.knowledge.sync import (
     sync_once,
 )
 from jianshanagent.testing.sites import one_wiki, site_packages, write_site
-from jianshanagent_site_huiji.knowledge import HuijiPlugin
 
 from jianshanagent_site_huiji_yys.knowledge import YysPlugin, moved_keys
 
@@ -255,14 +255,16 @@ def test_images_collect_says_so_when_no_plugin_curates_images(
 # ---------- 加载 ----------
 
 
-def write_config(root: Path, site: str = "", **deployed: dict[str, Any]) -> None:
-    """一份最小的部署配置：``core.wiki.yaml``（地址 + 用哪个站点插件）。
-    ``deployed``：部署目录里另放的、和站点插件配置同名的文件（``huiji`` → ``site.huiji.yaml``）。"""
+def write_config(
+    root: Path, site: str = "", *, platform: str = "", **deployed: dict[str, Any]
+) -> None:
+    """一份最小的部署配置：``core.wiki.yaml``（地址 + 用哪个站点插件，或者只写在哪个平台上）。
+    ``deployed``：部署目录里另放的、改平台默认配置的文件（``huiji`` → ``platform.huiji.yaml``）。"""
     root.mkdir(parents=True, exist_ok=True)
-    wiki = one_wiki(site, api_url="https://w.test/api.php")
+    wiki = one_wiki(site, api_url="https://w.test/api.php", platform=platform)
     (root / "core.wiki.yaml").write_text(yaml.safe_dump(wiki), encoding="utf-8")
     for name, raw in deployed.items():
-        (root / f"site.{name}.yaml").write_text(
+        (root / f"platform.{name}.yaml").write_text(
             yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8"
         )
 
@@ -270,17 +272,17 @@ def write_config(root: Path, site: str = "", **deployed: dict[str, Any]) -> None
 def test_the_shipped_config_loads_huiji_then_yys_and_merges_their_rules() -> None:
     config = load_config()
     settings = load_settings(config)
-    # 配置里只写了 huiji_yys；它的上级 huiji 是顺着清单带出来的，先加载
+    # 配置里只写了 huiji_yys；它是灰机上的站，灰机平台的那一份先加载
     assert [wiki["site"] for wiki in config.get("core.wiki")["wikis"]] == ["huiji_yys"]
     assert settings.sites.ids == ("huiji", "huiji_yys") and settings.sites.has_images
     huiji, yys = settings.sites.require("huiji"), settings.sites.require("huiji_yys")
-    assert isinstance(huiji, HuijiPlugin) and isinstance(yys, YysPlugin)
+    assert isinstance(huiji, HuijiKnowledge) and isinstance(yys, YysPlugin)
     assert huiji.data_url(settings.wiki).endswith("/api/rest_v1/namespace/data")
     assert yys.huiji is huiji and yys.cfg.images.art_prefix == "Skin_"
     assert [post.kind for post in yys.cfg.sources.posts if post.enabled] == ["dashen"]
 
-    # 清洗规则是三份合起来的：核心的 MediaWiki 通用项、灰机的约定、这个站的组件。
-    # 站点插件的补充读配置时就并进 plugin.knowledge 了
+    # 清洗规则是三份合起来的：MediaWiki 通用项、灰机的约定、这个站的组件。
+    # 平台和站点插件的补充读配置时就并进 plugin.knowledge 了
     clean = settings.clean
     assert {"navbox", "mw-editsection", "kb-ignore", "huiji-tt-preload", "shiki-nav"} <= (
         clean.remove_classes
@@ -301,7 +303,7 @@ def test_the_shipped_config_loads_huiji_then_yys_and_merges_their_rules() -> Non
     assert own["clean"]["remove_classes"][0] == "navbox" and "min_year" not in own["dates"]
 
 
-def test_the_site_named_in_the_config_brings_its_parents_and_wrong_names_are_explained(
+def test_the_site_named_in_the_config_brings_its_platform_and_wrong_names_are_explained(
     tmp_path: Path,
 ) -> None:
     write_config(tmp_path / "none")
@@ -309,23 +311,23 @@ def test_the_site_named_in_the_config_brings_its_parents_and_wrong_names_are_exp
     assert len(bare.sites) == 0 and not bare.sites.has_images
     # 配置里什么清洗规则都没写：MediaWiki 通用的那几样照样去掉
     assert bare.clean.remove_classes >= CleanSettings().remove_classes >= {"navbox", "toc"}
-    assert "kb-ignore" not in bare.clean.remove_classes  # 灰机的约定没用到灰机插件就不生效
+    assert "kb-ignore" not in bare.clean.remove_classes  # 灰机的约定：不在灰机上的 wiki 不生效
 
-    # 只用平台插件；部署目录里同名的文件改它的默认配置
-    write_config(tmp_path / "huiji", "huiji", huiji={"data_namespace": 3600})
+    # 没有站点插件、只写了在灰机上；部署目录里同名的文件改平台的默认配置
+    write_config(tmp_path / "huiji", platform="huiji", huiji={"data_namespace": 3600})
     only_huiji = load_settings(load_config(tmp_path / "huiji"))
     assert only_huiji.sites.ids == ("huiji",) and "kb-ignore" in only_huiji.clean.remove_classes
     assert only_huiji.sites.require("huiji").data_namespace == 3600  # type: ignore[attr-defined]
     assert "shiki-nav" not in only_huiji.clean.remove_classes  # 阴阳师的规则不生效
 
-    # 写最末一级就够：上级自动带出来，排在前面
+    # 写站点插件就够：它的平台自动带出来，排在前面
     write_config(tmp_path / "yys", "huiji_yys")
     config = load_config(tmp_path / "yys")
-    assert config.sites == ["huiji", "huiji_yys"]
+    assert (config.platforms, config.sites) == (["huiji"], ["huiji_yys"])
     assert load_settings(config).sites.ids == ("huiji", "huiji_yys")
 
-    write_config(tmp_path / "typo", "huijii")
-    with pytest.raises(SiteError, match="没有叫「huijii」的站点插件（装着的有：huiji、huiji_yys"):
+    write_config(tmp_path / "typo", "huiji_yyss")
+    with pytest.raises(SiteError, match="没有叫「huiji_yyss」的站点插件（装着的有：huiji_yys"):
         load_config(tmp_path / "typo")
     # 老写法（只能挂一个 wiki 时的）：说清楚该怎么改
     (tmp_path / "old").mkdir()
@@ -364,19 +366,16 @@ def test_site_rules_are_added_to_the_generic_ones_and_single_values_come_from_th
     }
     assert generic["clean"]["remove_classes"] == ["a", "b"]  # 不动传进来的
 
-    # 读配置时就并好了：只并用到的那一串（上级在前，下级盖住上级）；
+    # 读配置时就并好了：只并用到的那个插件的；
     # 部署目录里同名的文件、local、覆写目录还能再盖
     sites = site_packages(tmp_path, monkeypatch, "demo_sites")
-    one = write_site(
-        sites / "one",
+    two = write_site(
+        sites / "two",
         capabilities=("extend",),
-        config={"extend": {"plugin.demo": {"words": ["甲"], "label": "甲", "size": 2}}},
-    )
-    write_site(
-        one / "sites" / "one_two",
-        parent="one",
-        capabilities=("extend",),
-        config={"extend": {"plugin.demo": {"words": ["乙"], "label": "乙"}}, "own": 1},
+        config={
+            "extend": {"plugin.demo": {"words": ["甲", "乙"], "label": "乙", "size": 2}},
+            "own": 1,
+        },
     )
     write_site(
         sites / "three",
@@ -391,20 +390,20 @@ def test_site_rules_are_added_to_the_generic_ones_and_single_values_come_from_th
         text = yaml.safe_dump(data, allow_unicode=True)
         (directory / f"{name}.yaml").write_text(text, encoding="utf-8")
 
-    write(root, "core.wiki", one_wiki("demo_sites.one.sites.one_two"))
+    write(root, "core.wiki", one_wiki("demo_sites.two"))
     write(root, "plugin.demo", {"words": ["通用"], "label": "通用", "size": 1, "keep": True})
     config = load_config(root, overrides)
-    assert config.sites == ["one", "one_two"]
-    assert config.site("one_two") == config.get("site.one_two")
-    assert config.site("one_two")["own"] == 1 and "site.three" not in config.files
-    assert config.source_path("site.one_two") == one / "sites" / "one_two" / "config.yaml"
+    assert config.sites == ["two"]
+    assert config.site("two") == config.get("site.two")
+    assert config.site("two")["own"] == 1 and "site.three" not in config.files
+    assert config.source_path("site.two") == two / "config.yaml"
     assert config.plugin("demo") == {
         "words": ["通用", "甲", "乙"],
         "label": "乙",
         "size": 2,
         "keep": True,
     }
-    write(root, "site.one_two", {"own": 5})  # 部署目录里同名的文件：改插件的默认配置
+    write(root, "site.two", {"own": 5})  # 部署目录里同名的文件：改插件的默认配置
     write(root / "local", "plugin.demo", {"size": 3})
     write(overrides, "plugin.demo", {"label": "后台改的"})
     config = load_config(root, overrides)
@@ -414,7 +413,7 @@ def test_site_rules_are_added_to_the_generic_ones_and_single_values_come_from_th
         "size": 3,
         "keep": True,
     }
-    assert config.site("one_two")["own"] == 5 and "extend" in config.site("one_two")
+    assert config.site("two")["own"] == 5 and "extend" in config.site("two")
     assert config.overrides == {"plugin.demo": {"label": "后台改的"}}  # 覆写是和并好的默认值比的
     # 补充里写了不存在的配置：读配置时就报错，不悄悄不生效
     write_site(
