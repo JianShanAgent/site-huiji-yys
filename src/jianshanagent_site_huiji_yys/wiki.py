@@ -126,7 +126,7 @@ class _CharacterIndex:
 
 
 class YysProvider(WikiProvider):
-    id = "yys"
+    id = "huiji_yys"
     kinds = KIND_LABELS
     search_hint = "支持式神正式名、玩家昵称（如「高铁」）、御魂名、页面标题。"
     get_hint = "式神返回稀有度、CV、简介、技能（含数值）；御魂返回属性与效果；"

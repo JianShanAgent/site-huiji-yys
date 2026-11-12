@@ -11,13 +11,14 @@ from conftest import CONFIG_DIR
 
 
 def test_naming_the_site_brings_the_platform_and_their_additions() -> None:
-    assert {"huiji", "yys"} <= set(installed_sites())  # 两个包都装着、都登记了
+    assert {"huiji", "huiji_yys"} <= set(installed_sites())  # 两个包都装着、都登记了
     config = load_config(CONFIG_DIR, with_overrides=False)
-    # 配置里只写了 yys，上级 huiji 顺着清单带出来
-    assert config.get("core.wiki")["site"] == "yys" and config.sites == ["huiji", "yys"]
-    assert config.site("yys")["wiki"]["soul_page"] == "御魂检索器"
+    # 配置里只写了 huiji_yys，上级 huiji 顺着清单带出来
+    (wiki,) = config.get("core.wiki")["wikis"]
+    assert wiki["site"] == "huiji_yys" and config.sites == ["huiji", "huiji_yys"]
+    assert config.site("huiji_yys")["wiki"]["soul_page"] == "御魂检索器"
     # 两个插件的默认配置各在自己的包里
-    assert config.source_path("site.yys").parent.name == "jianshanagent_site_huiji_yys"
+    assert config.source_path("site.huiji_yys").parent.name == "jianshanagent_site_huiji_yys"
     assert config.source_path("site.huiji").parent.name == "jianshanagent_site_huiji"
 
     # 这个站对通用配置的补充，读配置时就并进去了
@@ -33,7 +34,7 @@ def test_naming_the_site_brings_the_platform_and_their_additions() -> None:
 
 def test_the_additions_cannot_be_edited_from_the_admin_pages() -> None:
     config = load_config(CONFIG_DIR, with_overrides=False)
-    for name in ("site.huiji", "site.yys"):
+    for name in ("site.huiji", "site.huiji_yys"):
         data = config.get(name)
         fields = build_schema(data, data, {}, name=name)
         locked = {".".join(field["path"]) for field in fields if field["locked"]}

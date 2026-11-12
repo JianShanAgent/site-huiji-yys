@@ -4,12 +4,14 @@
 name: "阴阳师"                      # 提示词里用它：「你是阴阳师 wiki 机器人的查证员」
 about: "网易手游"                   # 向模型交代背景时用（「阴阳师（网易手游）」）
 
-api_url: "https://yys.huijiwiki.com/api.php"
-site_base: "https://yys.huijiwiki.com"
-# wiki 在 Cloudflare 后面，请求要带放行请求头才不会被挑战页拦截。
-# 这里只写请求头名；密钥在 secrets.yaml 的 wiki.authkey（不入库）
-auth_header: "X-authkey"
-
-# 站点插件：阴阳师 wiki（jianshanagent-site-huiji-yys），它的上级灰机平台（jianshanagent-site-huiji）会先加载。
-# 这一项和上面的地址都不能在管理后台里改，要改就改这个文件再发布。
-site: yys
+# 挂哪几个 wiki（这一段不能在管理后台里改，要改就改这个文件再发布）
+wikis:
+  - id: huiji                       # 这个 wiki 在这个部署里的名字：知识库的目录名、密钥的键
+    label: "灰机 wiki"              # 挂了不止一个 wiki 时，回答里标出处用
+    api_url: "https://yys.huijiwiki.com/api.php"
+    # wiki 在 Cloudflare 后面，请求要带放行请求头才不会被挑战页拦截。
+    # 这里只写请求头名；密钥在 secrets.yaml 的 wiki.huiji.authkey（不入库）
+    auth_header: "X-authkey"
+    # 站点插件：灰机上的阴阳师 wiki（jianshanagent-site-huiji-yys），
+    # 它的上级灰机平台（jianshanagent-site-huiji）会先加载
+    site: huiji_yys

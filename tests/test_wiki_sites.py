@@ -24,13 +24,14 @@ import yaml
 from jianshanagent.core.config import AppConfig, load_config
 from jianshanagent.core.messages import ChatScope, InboundMessage
 from jianshanagent.core.plugin import PluginContext
-from jianshanagent.core.wiki import WikiSite, load_wiki_site, wiki_subject
+from jianshanagent.core.wiki import WikiSite, load_wikis, wiki_subject
 from jianshanagent.plugins.research import analysis, workflow
 from jianshanagent.plugins.research.evidence import SiteSearchSource, site_keywords_hint
 from jianshanagent.plugins.research.plugin import wording_from
 from jianshanagent.plugins.wiki_query.client import KIND_PAGE, NameMatch, SearchHit, WikiQueryClient
+from jianshanagent.plugins.wiki_query.hub import WikiQueryHub
 from jianshanagent.plugins.wiki_query.plugin import WikiQueryPlugin
-from jianshanagent.testing.sites import site_packages, write_site
+from jianshanagent.testing.sites import one_wiki, site_packages, write_site
 
 from wiki_fakes import SITE, FakeWiki, make_client
 
@@ -39,11 +40,14 @@ REPO_CONFIG = Path(__file__).resolve().parent / "config"
 YYS_WORDS = re.compile("阴阳师|式神|御魂|huijiwiki|yys")
 
 
-def plain_config(tmp_path: Path, **wiki: Any) -> AppConfig:
-    """仓库里的配置换成「一个普通的 MediaWiki」：不装站点插件，地址和名字换掉。"""
+def plain_config(tmp_path: Path, *, site: str = "", **subject: Any) -> AppConfig:
+    """仓库里的配置换成「一个普通的 MediaWiki」：不装站点插件，地址和名字换掉。
+
+    ``subject``：这个 wiki 叫什么（``name``、``about``）；``site``：要装的站点插件。
+    """
     root = tmp_path / "config"
     shutil.copytree(REPO_CONFIG, root, ignore=shutil.ignore_patterns("local", "secrets.yaml"))
-    core = {"api_url": f"{SITE}/api.php", "site_base": SITE, "site": ""} | wiki
+    core = subject | one_wiki(site, api_url=f"{SITE}/api.php", site_base=SITE)
     (root / "core.wiki.yaml").write_text(yaml.safe_dump(core, allow_unicode=True), "utf-8")
     return load_config(root)
 
@@ -79,8 +83,9 @@ async def test_a_plain_mediawiki_is_queried_through_api_php_only(
 ) -> None:
     fake = FakeWiki()
     ctx = register(monkeypatch, plain_config(tmp_path, name="示例"), fake)
-    client: WikiQueryClient = ctx.services["wiki_query_client"]
-    assert client.providers == [] and client.kind_labels == {}
+    hub: WikiQueryHub = ctx.services["wiki_query"]
+    (client,) = hub.clients
+    assert client.providers == [] and client.kind_labels == {} and not hub.multiple
 
     # 命令只有 /查；说明和用法里不提式神、御魂
     assert [(spec.name, spec.description) for spec in ctx.commands] == [("查", "查询 wiki 条目")]
@@ -95,9 +100,12 @@ async def test_a_plain_mediawiki_is_queried_through_api_php_only(
     assert await send(ctx, "/查 山风") == "没有找到与「山风」相关的 wiki 条目。"
 
     # 别名只认重定向
-    assert await client.lookup_name("十周年") == [NameMatch("十周年游园活动", KIND_PAGE)]
-    assert await client.lookup_name("高铁") == []
-    assert await client.search("战斗机制") == [SearchHit("战斗机制", KIND_PAGE, exact=True)]
+    # 查到的东西上标着出自哪个 wiki（core.wiki.yaml 里它的 id）
+    assert await hub.lookup_name("十周年") == [NameMatch("十周年游园活动", KIND_PAGE, wiki="main")]
+    assert await hub.lookup_name("高铁") == []
+    assert await hub.search("战斗机制") == [
+        SearchHit("战斗机制", KIND_PAGE, exact=True, wiki="main")
+    ]
 
     # 全程只用 api.php：没有去碰灰机的 Data 接口
     assert set(fake.paths) == {"/api.php"}
@@ -166,18 +174,22 @@ class _Blank(dict[str, Any]):
 
 
 def test_which_wiki_comes_from_one_place_and_is_never_guessed(tmp_path: Path) -> None:
-    repo = load_wiki_site(load_config(REPO_CONFIG))
-    assert (repo.name, repo.about) == ("阴阳师", "网易手游")
+    config = load_config(REPO_CONFIG)
+    (repo,) = load_wikis(config)
+    subject = wiki_subject(config)
+    assert (subject.name, subject.about) == ("阴阳师", "网易手游")
+    assert (repo.id, repo.label) == ("huiji", "灰机 wiki")
     assert repo.api_url.endswith("/api.php") and repo.auth_header == "X-authkey"
+    assert repo.site_base == "https://yys.huijiwiki.com"  # 没另写：从接口地址得出
     # 页面地址的写法跟着这个站走
     other = WikiSite(api_url="https://x.test/w/api.php", site_base="https://x.test",
                      article_path="/index.php/$1")  # fmt: skip
     assert other.page_url("Main Page") == "https://x.test/index.php/Main_Page"
     assert other.page_url_prefix == "https://x.test/index.php/"
     # 没写是哪个 wiki：不猜，直接报错（以前会悄悄去查阴阳师 wiki）
-    (tmp_path / "core.wiki.yaml").write_text("site: ''\n", encoding="utf-8")
+    (tmp_path / "core.wiki.yaml").write_text("wikis: []\n", encoding="utf-8")
     with pytest.raises(ValueError, match="不知道是哪个 wiki"):
-        load_wiki_site(load_config(tmp_path))
+        load_wikis(load_config(tmp_path))
 
 
 # ---------- 装上灰机和阴阳师（仓库里的配置） ----------
@@ -187,13 +199,14 @@ async def test_the_shipped_sites_add_characters_souls_and_the_filter_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo = load_config(REPO_CONFIG)
-    names = ("plugin.wiki_query", "core.wiki", "site.huiji", "site.yys")
+    names = ("plugin.wiki_query", "core.wiki", "site.huiji", "site.huiji_yys")
     files = {name: repo.get(name) for name in names}
-    files["core.wiki"] |= {"api_url": f"{SITE}/api.php", "site_base": SITE}
+    (wiki,) = files["core.wiki"]["wikis"]
+    files["core.wiki"] = files["core.wiki"] | {"wikis": [wiki | {"api_url": f"{SITE}/api.php"}]}
     fake = FakeWiki()
     ctx = register(monkeypatch, AppConfig(root=Path("."), files=files, secrets={}), fake)
-    client: WikiQueryClient = ctx.services["wiki_query_client"]
-    assert [provider.id for provider in client.providers] == ["huiji", "yys"]
+    (client,) = ctx.services["wiki_query"].clients
+    assert [provider.id for provider in client.providers] == ["huiji", "huiji_yys"]
     assert client.kind_labels == {"character": "式神", "soul": "御魂"}
     assert [spec.name for spec in ctx.commands] == ["查", "筛选"]
     assert ctx.commands[0].description == "查询式神、御魂或 wiki 条目"  # 阴阳师插件补的说法
@@ -210,8 +223,8 @@ async def test_the_shipped_sites_add_characters_souls_and_the_filter_command(
     assert "/api/rest_v1/namespace/data" in fake.paths
     await client.aclose()
 
-    # 配置里只写了 yys：灰机是顺着清单带出来的
-    assert files["core.wiki"]["site"] == "yys"
+    # 配置里只写了 huiji_yys：灰机是顺着清单带出来的
+    assert wiki["site"] == "huiji_yys"
 
 
 async def test_a_generic_client_and_one_with_the_sites_differ_only_in_what_the_sites_add() -> None:
@@ -310,7 +323,7 @@ async def test_a_site_of_ones_own_adds_its_entries_and_commands(
 
     fake = FakeWiki()
     ctx = register(monkeypatch, config, fake)
-    client: WikiQueryClient = ctx.services["wiki_query_client"]
+    (client,) = ctx.services["wiki_query"].clients
     assert [(spec.name, spec.description) for spec in ctx.commands] == [
         ("查", "查菜谱或 wiki 条目"),
         ("食材", "查一道菜要哪些食材"),
@@ -320,7 +333,7 @@ async def test_a_site_of_ones_own_adds_its_entries_and_commands(
     assert await send(ctx, "/食材 番茄炒蛋") == "番茄、鸡蛋"
     assert (await send(ctx, "/查 战斗机制")).startswith("**【战斗机制】**")  # 页面照常查
     assert await client.lookup_name("西红柿炒鸡蛋") == [
-        NameMatch("番茄炒蛋", "recipe", ("西红柿炒鸡蛋",))
+        NameMatch("番茄炒蛋", "recipe", ("西红柿炒鸡蛋",), wiki="main")
     ]
     assert client.kind_label("recipe") == "菜谱" and client.kind_label("page") == "页面"
     assert "支持菜谱名和别名、页面标题。" in ctx.tools["wiki_search"].description

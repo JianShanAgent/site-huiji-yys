@@ -1,5 +1,6 @@
-# 站点插件 yys 的默认配置（配置名 site.yys）：阴阳师 wiki（yys.huijiwiki.com）。
-# core.wiki.yaml 的 site 写成 yys 时生效；它的上级 huiji（灰机平台）会先加载。分三段：
+# 站点插件 huiji_yys 的默认配置（配置名 site.huiji_yys）：灰机上的阴阳师 wiki（yys.huijiwiki.com）。
+# core.wiki.yaml 里哪个 wiki 的 site 写成 huiji_yys，就对那个 wiki 生效；
+# 它的上级 huiji（灰机平台）会先加载。分三段：
 #   wiki       查询（/查、/筛选）里这个站特有的东西
 #   knowledge  知识库里这个站特有的东西
 #   extend     这个站对通用配置的补充：清洗规则、提示词里的说法、人设……

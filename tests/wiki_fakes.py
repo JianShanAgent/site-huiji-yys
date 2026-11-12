@@ -292,7 +292,6 @@ def make_client(
     wiki = WikiSite(
         api_url=f"{SITE}/api.php",
         site_base=SITE,
-        name="阴阳师",
         user_agent="test-agent",
         auth_header=auth_header,
         auth_key=auth_key,
@@ -308,6 +307,6 @@ def make_client(
 
 def yys_of(client: WikiQueryClient) -> YysProvider:
     """客户端上装着的阴阳师插件。"""
-    provider = client.provider("yys")
+    provider = client.provider("huiji_yys")
     assert isinstance(provider, YysProvider)
     return provider

@@ -6,7 +6,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/插件-站点%20·%20站-2f6b5a?style=flat-square&labelColor=1f3b34" alt="站点插件 · 站">
-  <img src="https://img.shields.io/badge/id-yys-e9a66b?style=flat-square&labelColor=1f3b34" alt="id: yys">
+  <img src="https://img.shields.io/badge/id-huiji__yys-e9a66b?style=flat-square&labelColor=1f3b34" alt="id: huiji_yys">
   <img src="https://img.shields.io/badge/上级-huiji-e9a66b?style=flat-square&labelColor=1f3b34" alt="上级: huiji">
   <img src="https://img.shields.io/github/license/JianShanAgent/site-huiji-yys?label=License&color=2f6b5a&style=flat-square&labelColor=1f3b34" alt="License">
 </p>
@@ -64,29 +64,33 @@ dependencies = [
 ```yaml
 name: "阴阳师"
 about: "网易手游"
-api_url: "https://yys.huijiwiki.com/api.php"
-site_base: "https://yys.huijiwiki.com"
-auth_header: "X-authkey"
-site: yys          # 只需填 yys，上级平台插件 huiji 会自动先行加载
+wikis:
+  - id: huiji                # 这个 wiki 在部署里的名字：知识库的目录名、密钥的键
+    label: "灰机 wiki"       # 挂了不止一个 wiki 时，回答里标出处用
+    api_url: "https://yys.huijiwiki.com/api.php"
+    auth_header: "X-authkey"
+    site: huiji_yys          # 只需填 huiji_yys，上级平台插件 huiji 会自动先行加载
 ```
 
-将灰机 Cloudflare 放行密钥填入实例 `config/secrets.yaml` 的 `wiki.authkey`，然后通过 `uv sync && uv run jianshanagent` 或 `docker compose up -d --build` 启动即可。
+`wikis` 是一份名单：同一个部署还可以再挂别的 wiki（比如 BWiki 上的阴阳师），各用各的站点插件，资料合在一起检索、回答里标明出处。
+
+将灰机 Cloudflare 放行密钥填入实例 `config/secrets.yaml` 的 `wiki.huiji.authkey`（中间那一段是上面写的 `id`），然后通过 `uv sync && uv run jianshanagent` 或 `docker compose up -d --build` 启动即可。
 
 ## 配置说明
 
-插件默认配置位于 [`src/jianshanagent_site_huiji_yys/config.yaml`](src/jianshanagent_site_huiji_yys/config.yaml)，逻辑名为 `site.yys`，分为三部分：
+插件默认配置位于 [`src/jianshanagent_site_huiji_yys/config.yaml`](src/jianshanagent_site_huiji_yys/config.yaml)，逻辑名为 `site.huiji_yys`，分为三部分：
 - `wiki`：控制 `/筛选` 指令名及御魂链接跳转目标页；
 - `knowledge`：控制公告、剧情、数据集、实体词典与图库的采集规则；
 - `extend`：注入核心通用配置的清洗规则、查证分类提示与默认人设。
 
-如需在部署实例中调整参数，新建 `config/site.yys.yaml` 仅填写需要覆盖的字段即可。
+如需在部署实例中调整参数，新建 `config/site.huiji_yys.yaml` 仅填写需要覆盖的字段即可。
 
 ## 目录结构与本地开发
 
 ```text
 site-huiji-yys/
 ├── src/jianshanagent_site_huiji_yys/
-│   ├── plugin.yaml      # 插件清单（id: yys, parent: huiji）
+│   ├── plugin.yaml      # 插件清单（id: huiji_yys, parent: huiji）
 │   ├── config.yaml      # 默认配置与 extend 扩展项
 │   ├── wiki.py          # 查询侧实现：式神、御魂卡片与 /筛选
 │   └── knowledge/       # 知识库侧实现：取数、公告、剧情、数据集、实体、图库、增量同步归类

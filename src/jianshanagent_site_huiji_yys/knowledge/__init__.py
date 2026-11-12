@@ -10,9 +10,9 @@
 - 自动更新时 Data 文档和文件的改动意味着什么 → changes.py
 - 质量报告里自己的几节 → report.py
 
-这一摊的配置在 ``config/site.yys`` 的 ``knowledge`` 段。
+这一摊的配置在 ``config/site.huiji_yys`` 的 ``knowledge`` 段。
 这个站的清洗规则（要去掉哪些 class、哪些 class 是小标题……）不是代码，是配置：
-写在 ``config/site.yys`` 的 ``extend`` 段里，读配置时就并进 ``plugin.knowledge`` 了。
+写在 ``config/site.huiji_yys`` 的 ``extend`` 段里，读配置时就并进 ``plugin.knowledge`` 了。
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from jianshanagent_site_huiji_yys.knowledge.settings import YysConfig, YysEnv, l
 
 logger = get_logger(__name__)
 
-#: 这些段原来写在 plugin.knowledge 里，现在归这个插件（site.yys 的 knowledge 段）。
+#: 这些段原来写在 plugin.knowledge 里，现在归这个插件（site.huiji_yys 的 knowledge 段）。
 #: 还留在老地方的不起作用，加载时提醒一声：（老地方的路径，现在的路径）
 _MOVED = (
     (("entities",), "entities"),
@@ -143,7 +143,7 @@ def create(setup: SiteSetup) -> YysPlugin:
         logger.warning(
             "kb_config_moved",
             old=f"plugin.knowledge 的 {old}",
-            new=f"site.yys 的 knowledge.{new}",
+            new=f"site.huiji_yys 的 knowledge.{new}",
             hint="老地方写的不起作用了，挪到新地方（管理后台改过的在配置覆写目录里）",
         )
     return YysPlugin(huiji, load_yys_config(setup.raw.get("knowledge") or {}))

@@ -959,7 +959,7 @@ async def test_images_follow_the_wiki_and_only_new_ones_are_downloaded(tmp_path:
         name: WikiFile(name=name, url=f"https://cdn.test/{name}", sha1=sha1(content))
         for name, content in site.files.items()
     }
-    env = settings.sites.require("yys").env(settings)  # type: ignore[attr-defined]
+    env = settings.sites.require("huiji_yys").env(settings)  # type: ignore[attr-defined]
     catalog = build_catalog(files, CatalogData(character_index=INDEX, skin=SKINS), env)
     images_path = settings.output_dir / IMAGES_FILE
     store_dir = settings.output_dir / "vectors" / vectors_dirname(PROVIDER)
@@ -1026,16 +1026,19 @@ def test_settings_come_from_the_config_file_and_the_data_directory_from_the_envi
     settings = load_settings(config)
     sync = settings.sync
     assert sync.enabled and sync.interval_seconds == 3600 and sync.full_window == (180, 360)
-    assert settings.sites.ids == ("huiji", "yys")
-    yys = settings.sites.require("yys")
+    assert settings.sites.ids == ("huiji", "huiji_yys")
+    yys = settings.sites.require("huiji_yys")
     assert isinstance(yys, YysPlugin)
     assert yys.cfg.page_data == ("Data:Character/{id}.json", "Data:Skilldiff/{id}.json")
     assert (sync.full_every_days, sync.full_settle_hours, sync.max_requests) == (7, 24, 600)
-    assert settings.output_dir.name == "kb" and settings.cache_dir == settings.output_dir / "cache"
+    # 知识库目录下一个 wiki 一层（名字是 core.wiki.yaml 里这个 wiki 的 id），缓存在它里面
+    assert settings.output_dir.name == "huiji" and settings.output_dir.parent.name == "kb"
+    assert settings.cache_dir == settings.output_dir / "cache"
 
     monkeypatch.setenv(KB_DIR_ENV, str(tmp_path))
     moved = load_settings(config)
-    assert (moved.output_dir, moved.cache_dir) == (tmp_path.resolve(), tmp_path.resolve() / "cache")
+    assert moved.output_dir == tmp_path.resolve() / "huiji"
+    assert moved.cache_dir == moved.output_dir / "cache"
 
     assert parse_window("") is None and parse_window("23:30-05:00") == (1410, 300)
     for bad in ("3点到6点", "03:00", "03:00-03:00", "25:00-26:00"):
@@ -1059,11 +1062,12 @@ def test_state_survives_a_restart_and_the_loop_reports_whether_it_is_alive(tmp_p
     (tmp_path / "sync_state.json").write_text("写到一半")
     assert load_state(tmp_path) == SyncState()
 
-    settings = make_settings(tmp_path)
-    assert not healthy(settings)
-    settings.cache_dir.mkdir(parents=True)
-    (settings.cache_dir / HEARTBEAT_FILE).touch()
-    assert healthy(settings) and not healthy(settings, now=time.time() + 3600)
+    # 更新进程只有一个，轮流更新各个 wiki：心跳在知识库目录下，不在哪个 wiki 的目录里
+    root = tmp_path / "kb"
+    assert not healthy(root)
+    root.mkdir()
+    (root / HEARTBEAT_FILE).touch()
+    assert healthy(root) and not healthy(root, now=time.time() + 3600)
 
 
 def test_command_line_shows_status_without_touching_the_wiki(

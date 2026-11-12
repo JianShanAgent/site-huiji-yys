@@ -107,7 +107,8 @@ async def _rank(args: argparse.Namespace) -> None:
         for item in questions:
             for label, retriever in routes.items():
                 result = await retriever.search(item["question"])
-                ids = [hit.chunk.chunk_id for hit in result.hits]
+                # 题目里记的是切片文件里的 id；库里的 id 前面带着是哪个 wiki 的
+                ids = [hit.chunk.local_id for hit in result.hits]
                 found = [ids.index(gold) + 1 for gold in _gold(item) if gold in ids]
                 ranks[label].append(min(found) if found else None)
                 if retriever.settings is settings and retriever.embedder is not None:

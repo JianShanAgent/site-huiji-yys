@@ -41,7 +41,7 @@ from jianshanagent_site_huiji_yys.knowledge.story import build_story, story_id_o
 
 @dataclass(slots=True)
 class YysBuilt:
-    """建文档时留给后面的东西（放在 ``Built.extras["yys"]``）。"""
+    """建文档时留给后面的东西（放在 ``Built.extras["huiji_yys"]``）。"""
 
     #: 微信文章末尾清掉的行：文档标识 → 各行
     tail_cleanups: dict[str, list[str]] = field(default_factory=dict)
@@ -49,7 +49,7 @@ class YysBuilt:
 
 @dataclass(slots=True)
 class YysResult:
-    """留给报告的东西（放在 ``ProcessResult.extras["yys"]``）。"""
+    """留给报告的东西（放在 ``ProcessResult.extras["huiji_yys"]``）。"""
 
     lexicon: Lexicon = field(default_factory=Lexicon)
     #: 切片 ID → 这一片的实体命中（报告里给候选配上下文用）

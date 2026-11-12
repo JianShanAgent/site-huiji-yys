@@ -1,4 +1,4 @@
-"""阴阳师插件知识库这一摊的设置：读 ``config/site.yys`` 的 ``knowledge`` 段。
+"""阴阳师插件知识库这一摊的设置：读 ``config/site.huiji_yys`` 的 ``knowledge`` 段。
 
 那份配置里的 ``extend`` 一段（这个站的清洗规则、排除的页面、日期的门槛……）是给通用配置的补充，
 读配置时就并进去了（见 core/config.py），这里不读。

@@ -14,7 +14,7 @@ dependencies = ["jianshanagent", "jianshanagent-site-huiji"]
 
 # 登记成站点插件：名字是插件 id，值是包路径（规范见核心仓库的 docs/插件规范.md）
 [project.entry-points."jianshanagent.sites"]
-yys = "jianshanagent_site_huiji_yys"
+huiji_yys = "jianshanagent_site_huiji_yys"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/jianshanagent_site_huiji_yys"]

@@ -147,7 +147,7 @@ def _tail_section(out: ReportWriter, result: ProcessResult) -> None:
     out.section("微信文末的署名和推荐阅读")
     if not tail.get("documents"):
         add(
-            "规则已经写好（见 `sites/yys/posts.py` 的 `wechat_tail_start`），"
+            "规则已经写好（见这个站点插件 `knowledge/posts.py` 的 `wechat_tail_start`），"
             "但本次没有微信文章入库（来源关闭，或没有命中），所以没有生效的记录。"
         )
         add("")

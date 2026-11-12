@@ -45,10 +45,13 @@ def _register(monkeypatch: pytest.MonkeyPatch, fake: FakeWiki) -> PluginContext:
         partial(WikiQueryClient, transport=httpx.MockTransport(fake)),
     )
     repo = load_config(Path(__file__).resolve().parent / "config")
-    names = ("plugin.wiki_query", "core.wiki", "site.huiji", "site.yys")
+    names = ("plugin.wiki_query", "core.wiki", "site.huiji", "site.huiji_yys")
     files = {name: repo.get(name) for name in names}
-    files["core.wiki"] |= {"api_url": f"{SITE}/api.php", "site_base": SITE}
-    config = AppConfig(root=Path("."), files=files, secrets={"wiki": {"authkey": "k123"}})
+    (wiki,) = files["core.wiki"]["wikis"]
+    files["core.wiki"] = files["core.wiki"] | {"wikis": [wiki | {"api_url": f"{SITE}/api.php"}]}
+    # 密钥按 wiki 分着写：secrets.yaml 的 wiki.<这个 wiki 的 id>.authkey
+    secrets = {"wiki": {wiki["id"]: {"authkey": "k123"}}}
+    config = AppConfig(root=Path("."), files=files, secrets=secrets)
     ctx = PluginContext("wiki_query", config, {})
     WikiQueryPlugin().register(ctx)
     return ctx
@@ -58,7 +61,7 @@ def _register(monkeypatch: pytest.MonkeyPatch, fake: FakeWiki) -> PluginContext:
 async def bot(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[Bot]:
     ctx = _register(monkeypatch, FakeWiki())
     yield Bot(ctx)
-    await ctx.services["wiki_query_client"].aclose()
+    await ctx.services["wiki_query"].aclose()
 
 
 async def test_plugin_wires_header_name_from_config_and_key_from_secrets(
@@ -67,7 +70,7 @@ async def test_plugin_wires_header_name_from_config_and_key_from_secrets(
     fake = FakeWiki()
     ctx = _register(monkeypatch, fake)
     await Bot(ctx).send("/查 山风")
-    await ctx.services["wiki_query_client"].aclose()
+    await ctx.services["wiki_query"].aclose()
 
     assert fake.requests and all(r.headers["X-authkey"] == "k123" for r in fake.requests)
     assert sorted(spec.name for spec in ctx.commands) == ["查", "筛选"]
@@ -174,7 +177,7 @@ async def test_a_page_the_wiki_gives_no_text_for_is_shown_from_the_knowledge_bas
 
     ctx.services["knowledge"] = Broken()
     assert await bot.send("/查 超鬼王") == f"**【超鬼王】**\n{link}"
-    await ctx.services["wiki_query_client"].aclose()
+    await ctx.services["wiki_query"].aclose()
 
 
 async def test_filter_command(bot: Bot) -> None:
@@ -192,4 +195,4 @@ async def test_wiki_outage_gives_friendly_message(monkeypatch: pytest.MonkeyPatc
 
     assert await bot.send("/查 山风") == "wiki 暂时访问不了，请稍后再试。"
     assert await bot.send("/筛选 SSR") == "wiki 暂时访问不了，请稍后再试。"
-    await ctx.services["wiki_query_client"].aclose()
+    await ctx.services["wiki_query"].aclose()

@@ -30,12 +30,12 @@ from jianshanagent_site_huiji_yys.knowledge.story import story_chapters, story_i
 
 logger = get_logger(__name__)
 
-PLUGIN_ID = "yys"
+PLUGIN_ID = "huiji_yys"
 
 
 @dataclass(slots=True)
 class YysCorpus:
-    """这个插件取齐的原始内容（放在 ``RawCorpus.extras["yys"]``）。"""
+    """这个插件取齐的原始内容（放在 ``RawCorpus.extras["huiji_yys"]``）。"""
 
     #: (剧情ID, 章节ID) → 渲染这一章的页面（可能不止一个）
     story_pages: dict[tuple[str, str], list[PageRef]] = field(default_factory=dict)

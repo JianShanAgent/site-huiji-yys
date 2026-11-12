@@ -51,7 +51,7 @@ from jianshanagent.plugins.knowledge.sync import (
     Targets,
     sync_once,
 )
-from jianshanagent.testing.sites import site_packages, write_site
+from jianshanagent.testing.sites import one_wiki, site_packages, write_site
 from jianshanagent_site_huiji.knowledge import HuijiPlugin
 
 from jianshanagent_site_huiji_yys.knowledge import YysPlugin, moved_keys
@@ -235,19 +235,20 @@ def test_images_collect_says_so_when_no_plugin_curates_images(
     root = tmp_path / "config"
     root.mkdir()
     # 部署目录里放一份和插件配置同名的文件：这次部署对知识库默认配置的改动
-    knowledge = {
-        "paths": {"output_dir": str(tmp_path / "kb"), "cache_dir": str(tmp_path / "kb/cache")}
-    }
+    knowledge = {"paths": {"root": str(tmp_path / "kb")}}
     (root / "plugin.knowledge.yaml").write_text(yaml.safe_dump(knowledge), encoding="utf-8")
     (root / "core.wiki.yaml").write_text(
-        yaml.safe_dump({"api_url": "https://plain.test/w/api.php"}), encoding="utf-8"
+        yaml.safe_dump(one_wiki(api_url="https://plain.test/w/api.php")), encoding="utf-8"
     )
     settings = load_settings(load_config(root))
+    # 知识库目录下一个 wiki 一层
+    assert settings.output_dir == tmp_path / "kb" / "main"
     # 只写了接口地址：站点地址从它来，页面地址按 MediaWiki 的默认写法
     assert settings.wiki.site_base == "https://plain.test"
     assert settings.wiki.page_url("Main Page") == "https://plain.test/wiki/Main_Page"
     assert settings.wiki.link_prefix == "/wiki/" and len(settings.sites) == 0
-    assert main(["--config-dir", str(root), "images", "collect"]) == 2
+    # 这个 wiki 没有图库可收：说一声就过去了（挂着几个 wiki 时，别的 wiki 照常收）
+    assert main(["--config-dir", str(root), "images", "collect"]) == 0
     assert "没有站点插件管图库" in capsys.readouterr().err
 
 
@@ -258,7 +259,7 @@ def write_config(root: Path, site: str = "", **deployed: dict[str, Any]) -> None
     """一份最小的部署配置：``core.wiki.yaml``（地址 + 用哪个站点插件）。
     ``deployed``：部署目录里另放的、和站点插件配置同名的文件（``huiji`` → ``site.huiji.yaml``）。"""
     root.mkdir(parents=True, exist_ok=True)
-    wiki = {"api_url": "https://w.test/api.php", "site_base": "https://w.test", "site": site}
+    wiki = one_wiki(site, api_url="https://w.test/api.php")
     (root / "core.wiki.yaml").write_text(yaml.safe_dump(wiki), encoding="utf-8")
     for name, raw in deployed.items():
         (root / f"site.{name}.yaml").write_text(
@@ -269,10 +270,10 @@ def write_config(root: Path, site: str = "", **deployed: dict[str, Any]) -> None
 def test_the_shipped_config_loads_huiji_then_yys_and_merges_their_rules() -> None:
     config = load_config()
     settings = load_settings(config)
-    # 配置里只写了 yys；它的上级 huiji 是顺着清单带出来的，先加载
-    assert config.get("core.wiki")["site"] == "yys"
-    assert settings.sites.ids == ("huiji", "yys") and settings.sites.has_images
-    huiji, yys = settings.sites.require("huiji"), settings.sites.require("yys")
+    # 配置里只写了 huiji_yys；它的上级 huiji 是顺着清单带出来的，先加载
+    assert [wiki["site"] for wiki in config.get("core.wiki")["wikis"]] == ["huiji_yys"]
+    assert settings.sites.ids == ("huiji", "huiji_yys") and settings.sites.has_images
+    huiji, yys = settings.sites.require("huiji"), settings.sites.require("huiji_yys")
     assert isinstance(huiji, HuijiPlugin) and isinstance(yys, YysPlugin)
     assert huiji.data_url(settings.wiki).endswith("/api/rest_v1/namespace/data")
     assert yys.huiji is huiji and yys.cfg.images.art_prefix == "Skin_"
@@ -318,24 +319,26 @@ def test_the_site_named_in_the_config_brings_its_parents_and_wrong_names_are_exp
     assert "shiki-nav" not in only_huiji.clean.remove_classes  # 阴阳师的规则不生效
 
     # 写最末一级就够：上级自动带出来，排在前面
-    write_config(tmp_path / "yys", "yys")
+    write_config(tmp_path / "yys", "huiji_yys")
     config = load_config(tmp_path / "yys")
-    assert config.sites == ["huiji", "yys"]
-    assert load_settings(config).sites.ids == ("huiji", "yys")
+    assert config.sites == ["huiji", "huiji_yys"]
+    assert load_settings(config).sites.ids == ("huiji", "huiji_yys")
 
     write_config(tmp_path / "typo", "huijii")
-    with pytest.raises(SiteError, match="没有叫「huijii」的站点插件（装着的有：huiji、yys"):
+    with pytest.raises(SiteError, match="没有叫「huijii」的站点插件（装着的有：huiji、huiji_yys"):
         load_config(tmp_path / "typo")
-    # 老写法（手排顺序的名单）：说清楚该怎么改
+    # 老写法（只能挂一个 wiki 时的）：说清楚该怎么改
     (tmp_path / "old").mkdir()
     (tmp_path / "old" / "core.wiki.yaml").write_text(
-        "api_url: https://w.test/api.php\nsites: [huiji, yys]\n", encoding="utf-8"
+        "api_url: https://w.test/api.php\nsite: huiji_yys\n", encoding="utf-8"
     )
-    with pytest.raises(ValueError, match="改成 site，只写最末一级"):
+    with pytest.raises(
+        ValueError, match="最外层的 api_url、site 不用了.*每个 wiki 是 wikis 里的一项"
+    ):
         load_config(tmp_path / "old")
     # 不知道是哪个 wiki 时不猜
     (tmp_path / "nowhere").mkdir()
-    (tmp_path / "nowhere" / "core.wiki.yaml").write_text("site: ''\n", encoding="utf-8")
+    (tmp_path / "nowhere" / "core.wiki.yaml").write_text("wikis: []\n", encoding="utf-8")
     with pytest.raises(ValueError, match="不知道是哪个 wiki"):
         load_settings(load_config(tmp_path / "nowhere"))
 
@@ -370,7 +373,7 @@ def test_site_rules_are_added_to_the_generic_ones_and_single_values_come_from_th
         config={"extend": {"plugin.demo": {"words": ["甲"], "label": "甲", "size": 2}}},
     )
     write_site(
-        one / "sites" / "two",
+        one / "sites" / "one_two",
         parent="one",
         capabilities=("extend",),
         config={"extend": {"plugin.demo": {"words": ["乙"], "label": "乙"}}, "own": 1},
@@ -388,21 +391,20 @@ def test_site_rules_are_added_to_the_generic_ones_and_single_values_come_from_th
         text = yaml.safe_dump(data, allow_unicode=True)
         (directory / f"{name}.yaml").write_text(text, encoding="utf-8")
 
-    write(
-        root, "core.wiki", {"api_url": "https://w.test/api.php", "site": "demo_sites.one.sites.two"}
-    )
+    write(root, "core.wiki", one_wiki("demo_sites.one.sites.one_two"))
     write(root, "plugin.demo", {"words": ["通用"], "label": "通用", "size": 1, "keep": True})
     config = load_config(root, overrides)
-    assert config.sites == ["one", "two"] and config.site("two") == config.get("site.two")
-    assert config.site("two")["own"] == 1 and "site.three" not in config.files
-    assert config.source_path("site.two") == one / "sites" / "two" / "config.yaml"
+    assert config.sites == ["one", "one_two"]
+    assert config.site("one_two") == config.get("site.one_two")
+    assert config.site("one_two")["own"] == 1 and "site.three" not in config.files
+    assert config.source_path("site.one_two") == one / "sites" / "one_two" / "config.yaml"
     assert config.plugin("demo") == {
         "words": ["通用", "甲", "乙"],
         "label": "乙",
         "size": 2,
         "keep": True,
     }
-    write(root, "site.two", {"own": 5})  # 部署目录里同名的文件：改插件的默认配置
+    write(root, "site.one_two", {"own": 5})  # 部署目录里同名的文件：改插件的默认配置
     write(root / "local", "plugin.demo", {"size": 3})
     write(overrides, "plugin.demo", {"label": "后台改的"})
     config = load_config(root, overrides)
@@ -412,7 +414,7 @@ def test_site_rules_are_added_to_the_generic_ones_and_single_values_come_from_th
         "size": 3,
         "keep": True,
     }
-    assert config.site("two")["own"] == 5 and "extend" in config.site("two")
+    assert config.site("one_two")["own"] == 5 and "extend" in config.site("one_two")
     assert config.overrides == {"plugin.demo": {"label": "后台改的"}}  # 覆写是和并好的默认值比的
     # 补充里写了不存在的配置：读配置时就报错，不悄悄不生效
     write_site(
@@ -420,12 +422,12 @@ def test_site_rules_are_added_to_the_generic_ones_and_single_values_come_from_th
         capabilities=("extend",),
         config={"extend": {"plugin.nope": {"x": 1}}},
     )
-    write(root, "core.wiki", {"api_url": "https://w.test/api.php", "site": "demo_sites.bad"})
+    write(root, "core.wiki", one_wiki("demo_sites.bad"))
     with pytest.raises(ValueError, match="plugin.nope"):
         load_config(root)
     # 配置里有补充、清单里却没写这个能力：也报错（清单要说实话）
     write_site(sites / "sly", config={"extend": {"plugin.demo": {"size": 9}}})
-    write(root, "core.wiki", {"api_url": "https://w.test/api.php", "site": "demo_sites.sly"})
+    write(root, "core.wiki", one_wiki("demo_sites.sly"))
     with pytest.raises(ValueError, match="capabilities 里没有写 extend"):
         load_config(root)
 
@@ -446,12 +448,14 @@ def test_settings_left_in_the_old_place_are_pointed_out() -> None:
 
 
 def test_which_plugins_load_cannot_be_changed_from_the_admin_page() -> None:
-    assert locked_changes("core.wiki", {"site": "evil.module", "name": "x"}) == ["site"]
-    assert locked_changes("core.wiki", {"api_url": "https://evil.test/api.php"}) == ["api_url"]
+    # 挂哪几个 wiki（里面有地址和用哪个站点插件）整段锁着；这个 wiki 叫什么能改
+    evil = one_wiki("evil.module", api_url="https://evil.test/api.php")
+    assert locked_changes("core.wiki", {**evil, "name": "x"}) == ["wikis"]
+    assert locked_changes("core.wiki", {"name": "x"}) == []
     assert locked_changes("plugin.knowledge", {"sync": {"interval_minutes": 30}}) == []
     # 站点插件对通用配置的补充读配置时就并进去了，在网页上改它不会生效：锁着。它自己的设置能改
     change = {"extend": {"plugin.chat": {}}, "knowledge": {"posts": []}}
-    assert locked_changes("site.yys", change) == ["extend"]
+    assert locked_changes("site.huiji_yys", change) == ["extend"]
 
 
 # ---------- 自己写的插件 ----------

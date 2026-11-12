@@ -1,5 +1,5 @@
 # 插件清单（格式见核心仓库的 docs/插件规范.md）
-id: yys
+id: huiji_yys
 kind: site
 name: 阴阳师 wiki
 description: 阴阳师 wiki（yys.huijiwiki.com）特有的东西：式神、御魂的查询和筛选，知识库里的公告、剧情、数据集、实体、图库，以及这个站的清洗规则和提示词里的说法。

@@ -60,7 +60,7 @@ from jianshanagent.plugins.knowledge.sources import Fetched, Listing, PageRef, s
 from jianshanagent_site_huiji.knowledge import HuijiPlugin
 
 from jianshanagent_site_huiji_yys.knowledge import YysPlugin
-from jianshanagent_site_huiji_yys.knowledge.collect import YysCorpus
+from jianshanagent_site_huiji_yys.knowledge.collect import PLUGIN_ID, YysCorpus
 from jianshanagent_site_huiji_yys.knowledge.datasets import (
     Resolver,
     Roster,
@@ -415,7 +415,7 @@ def test_disabled_source_gives_no_documents_but_still_dates_entries() -> None:
     corpus = RawCorpus(
         listing=Listing(pages=[], data={}),
         extras={
-            "yys": YysCorpus(
+            PLUGIN_ID: YysCorpus(
                 posts=[("dashen", Fetched(DASHEN_REF, value=dashen))],
                 reference_posts=[("wechat", Fetched(WECHAT_REF, value=wechat))],
             )
